@@ -142,8 +142,11 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
 
   // Draws a horizontal histogram with value labels on the left, sorting bars
   // by their height. color_scale is optional and the DEFAULT_COLOR_SCALE will
-  // be used if it's left out.
-  function draw_histogram(element, counts, color_scale) {
+  // be used if it's left out. bar_limit is also optional and defaults to no
+  // limit, but a limit of around 30-50 is suggested depending on the available
+  // area so that label text doesn't overlap. bar_limit may be given explicitly
+  // as 'undefined' to set no limit.
+  function draw_histogram(element, counts, bar_limit, color_scale) {
     if (color_scale == undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
     }
@@ -164,6 +167,10 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
 
     // reverse sort order to put largest bars first
     pairs.sort(function (a, b) { return -(a[1] - b[1]); });
+
+    if (bar_limit != undefined) {
+      pairs = pairs.slice(0, bar_limit);
+    }
 
     var eh = element.attr("height"); // element height
     var pad = 0.02 * eh; // 2% padding on top and bottom
@@ -208,7 +215,7 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
       .style("text-anchor", "start")
-      .text(function(d) { return NBSP + d[1]; });
+      .text(function(d) { return NBSP + d[1].toPrecision(3); });
   }
 
   return {

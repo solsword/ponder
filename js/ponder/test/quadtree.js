@@ -459,6 +459,19 @@ define(["../unit", "../quadtree"], function (unit, qt) {
         { "x": 9, "y": 9, "pr": 4 },
       ]
     ),
+    unit.equals_test( // 10
+      qt.in_region(tt, [[-0.5, -0.5], [10.5, 10.5]]),
+      [
+        { "x": 1, "y": 1, "pr": 1 },
+        { "x": 3, "y": 3, "pr": 17 },
+        { "x": 3, "y": 3.1, "pr": 18 },
+        { "x": 3, "y": 3.1, "pr": 19 },
+        { "x": 1.1, "y": 6, "pr": 3 },
+        { "x": 3, "y": 7, "pr": 2 },
+        { "x": 7.5, "y": 7.5, "pr": 5 },
+        { "x": 9, "y": 9, "pr": 4 },
+      ]
+    ),
   ];
 
   // Test visit in pre- and post-order and truncated:

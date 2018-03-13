@@ -26,9 +26,14 @@ define(["d3/d3"], function (d3) {
     return get_bbox(obj).height;
   }
 
+  function get_n_attr(obj, attr) {
+    return Number.parseFloat(obj.attr(attr));
+  }
+
   return {
     "get_bbox": get_bbox,
     "get_width": get_width,
     "get_height": get_height,
+    "get_n_attr": get_n_attr,
   };
 });

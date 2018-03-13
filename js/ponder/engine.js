@@ -24,6 +24,9 @@ function (d3, utils, qt, viz) {
   var VIZ_RESOLUTION = 1; // min pixels per visualization unit
   var POINTS_ALLOWED = 512; // How many points we allow to be drawn on average
 
+  // Visualization limits
+  var HIST_BAR_LIMIT = 30; // max # of bars
+
   // Which property to use for point colors
   var COLOR_BY = undefined;
 
@@ -112,13 +115,14 @@ function (d3, utils, qt, viz) {
    */
 
   function get_items_in_circle(tree, cx, cy, r) {
-    var candiates = qt.in_region(
+    var region = [[cx - r, cy - r], [cx + r, cy + r]]
+    var candidates = qt.in_region(
       QUADTREE,
-      [[cx - r, cy - r], [cx + r, cy + r]]
+      region
     );
     var selected = [];
-    for (var i = 0; i < candiates.length; ++i) {
-      var it = candiates[i];
+    for (var i = 0; i < candidates.length; ++i) {
+      var it = candidates[i];
       var x = QUADTREE.getx(it);
       var y = QUADTREE.gety(it);
       var dx = x - cx;
@@ -131,17 +135,16 @@ function (d3, utils, qt, viz) {
   }
 
   function get_hovered() {
-    var cx = SHADOW.attr("cx");
-    var cy = SHADOW.attr("cy");
-    var r = SHADOW.attr("r");
+    var cx = utils.get_n_attr(SHADOW, "cx");
+    var cy = utils.get_n_attr(SHADOW, "cy");
+    var r = utils.get_n_attr(SHADOW, "r");
     return get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
   function get_selected() {
-    var cx = LENS.attr("cx");
-    var cy = LENS.attr("cy");
-    var r = LENS.attr("r");
-    console.log(cx + ", " + cy + ": " + r);
+    var cx = utils.get_n_attr(LENS, "cx");
+    var cy = utils.get_n_attr(LENS, "cy");
+    var r = utils.get_n_attr(LENS, "r");
     return get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
@@ -172,37 +175,19 @@ function (d3, utils, qt, viz) {
     // Collect items:
     var items = get_selected();
 
-    console.log(items.length + " items selected");
-
-    // DEBUG:
-    var cx = LENS.attr("cx");
-    var cy = LENS.attr("cx");
-    var r = LENS.attr("r");
-    var tc = 0;
-    for (var i = 0; i < DATA.length; ++i) {
-      var d = DATA[i];
-      var x = QUADTREE.getx(d);
-      var y = QUADTREE.gety(d);
-      var dx = x - cx;
-      var dy = y - cy;
-      if (Math.sqrt(dx * dx + dy * dy) <= r) {
-        tc += 1;
-      }
-    }
-
-    console.log("Should be: " + tc + " items");
-
     // TODO: Give user control over which info & how?
     // Extract & transform data:
-    var counts = viz.value_counts(items, "stuff");
+    //var counts = viz.value_counts(items, "stuff");
     //var counts = viz.value_counts(items, "activity");
-    //var counts = viz.value_counts(items, "purchased");
+    var counts = viz.value_counts(items, "purchased");
 
     // Display info:
     viz.draw_histogram(
       d3.select("#details_graph"),
       counts,
+      HIST_BAR_LIMIT,
       function(t) { return CONT_COLOR_SCALE(1-t); }
+      //function(t) { return CONT_COLOR_SCALE(t); }
     );
   }
 
@@ -221,7 +206,7 @@ function (d3, utils, qt, viz) {
       dy *= PIXELS_PER_LINE * LINES_PER_PAGE;
     }
 
-    var r = SHADOW.attr("r");
+    var r = utils.get_n_attr(SHADOW, "r");
     r *= (1 + 0.01 * dy / SCROLL_FACTOR);
     if (r < MIN_RADIUS) {
       r = MIN_RADIUS;
@@ -376,7 +361,9 @@ function (d3, utils, qt, viz) {
     //CONT_COLOR_SCALE = d3.interpolateViridis;
     //CONT_COLOR_SCALE = d3.interpolateBlues; // missing?!?
     CONT_COLOR_SCALE = function(t) {
-      return d3.interpolateMagma(1-t);
+      //return d3.interpolateInferno(1-t);
+      //return d3.interpolateInferno(t);
+      return d3.interpolate(d3.rgb(255, 245, 230), d3.rgb(0, 40, 190))(t);
     }
     COLOR_VALUE = function(d) {
       if (COLOR_BY != undefined && d.hasOwnProperty(COLOR_BY)) {
