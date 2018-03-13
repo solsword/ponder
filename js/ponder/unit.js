@@ -250,7 +250,7 @@ define([], function () {
           var result = suite[i]();
           if (result != SUCCESS) {
             console.log("    Test #" + i + " failed:")
-            console.log(result);
+            console.error(result);
             status = "FAILED";
           }
         }

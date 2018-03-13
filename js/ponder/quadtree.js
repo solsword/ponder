@@ -190,15 +190,19 @@ define([], function () {
     var result = undefined;
     var best = undefined;
     if (node.hasOwnProperty("children")) { // recurse
-      var quads_touched = quad_indices(
-        extent,
-        [ [x - radius, y - radius], [x + radius, y + radius] ]
-      );
+      if (radius == undefined) { 
+        var quads_touched = [ 0, 1, 2, 3 ];
+      } else {
+        var quads_touched = quad_indices(
+          extent,
+          [ [x - radius, y - radius], [x + radius, y + radius] ]
+        );
+      }
       var max_viable = best;
       if (max_viable == undefined) { max_viable = radius; }
       // First recurse into containing quadrant:
       var fq = quad_index(extent, x, y);
-      var fc = node.children(fq);
+      var fc = node.children[fq];
       if (fc != null) {
         var niq = find_nearest_in_quadrant(
           fc,
@@ -325,7 +329,7 @@ define([], function () {
       for (var i = 0; i < node.children.length; ++i) {
         var child = node.children[i];
         if (child != null) {
-          visit_each_node(child, sub_extent(extent, i), fcn);
+          visit_each_node(child, sub_extent(extent, i), fcn, post_order);
         }
       }
     }
@@ -387,7 +391,7 @@ define([], function () {
       x, y,
       tree.getx, tree.gety,
       radius
-    );
+    )[0];
   }
 
   // Returns a list of items in the given region, which should be given as a
@@ -424,7 +428,7 @@ define([], function () {
   // from. Rectangles overlap, and larger (containing) rectangles come earlier
   // in the list, so that they can be drawn in order. This method returns one
   // rectangle for each node in the tree. The max_resolution argument is
-  // optional, but if given, so rectangles smaller than that in either
+  // optional, but if given, no rectangles smaller than that in either
   // dimension will be returned. The base_density is also optional, but if
   // given, it establishes a default base density value, which will be used as
   // the max density unless a denser region exists.

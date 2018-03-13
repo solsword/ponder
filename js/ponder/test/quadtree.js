@@ -174,7 +174,7 @@ define(["../unit", "../quadtree"], function (unit, qt) {
     [
       { "x": 1, "y": 1, "pr": 1 },
       { "x": 3, "y": 7, "pr": 2 },
-      { "x": 2, "y": 6, "pr": 3 },
+      { "x": 1.1, "y": 6, "pr": 3 },
       { "x": 9, "y": 9, "pr": 4 },
       { "x": 7.5, "y": 7.5, "pr": 5 },
     ],
@@ -200,7 +200,7 @@ define(["../unit", "../quadtree"], function (unit, qt) {
             {
               "count": 2,
               "children": [
-                { "count": 1, "items": [ { "x": 2, "y": 6, "pr": 3 } ] },
+                { "count": 1, "items": [ { "x": 1.1, "y": 6, "pr": 3 } ] },
                 { "count": 1, "items": [ { "x": 3, "y": 7, "pr": 2 } ] },
                 null,
                 null,
@@ -233,8 +233,6 @@ define(["../unit", "../quadtree"], function (unit, qt) {
   qt.add_item(test_tree, {"x": 3, "y": 3, "pr": 17});
   qt.add_item(test_tree, {"x": 3, "y": 3.1, "pr": 18});
   qt.add_item(test_tree, {"x": 3, "y": 3.1, "pr": 19});
-
-  console.log(unit.deep_copy(test_tree));
 
   var add_item_tests = [
     unit.equals_test(
@@ -283,7 +281,7 @@ define(["../unit", "../quadtree"], function (unit, qt) {
             {
               "count": 2,
               "children": [
-                { "count": 1, "items": [ { "x": 2, "y": 6, "pr": 3 } ] },
+                { "count": 1, "items": [ { "x": 1.1, "y": 6, "pr": 3 } ] },
                 { "count": 1, "items": [ { "x": 3, "y": 7, "pr": 2 } ] },
                 null,
                 null,
@@ -312,9 +310,280 @@ define(["../unit", "../quadtree"], function (unit, qt) {
     ),
   ];
 
+  var tt = unit.deep_copy(test_tree);
   var nearest_tests = [
+    unit.equals_test( // 0
+      qt.nearest(tt, 1, 1, 0.5),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 1
+      qt.nearest(tt, 1, 1, 0),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 2
+      qt.nearest(tt, 1, 1, 20),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 3
+      qt.nearest(tt, 1, 1),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 4
+      qt.nearest(tt, 1, 1, undefined),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 5
+      qt.nearest(tt, -20, -20, undefined),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 6
+      qt.nearest(tt, -20, 4.9, undefined),
+      { "x": 1.1, "y": 6, "pr": 3 }
+    ),
+    unit.equals_test( // 7
+      qt.nearest(tt, -20, 5.1, undefined),
+      { "x": 1.1, "y": 6, "pr": 3 }
+    ),
+    unit.equals_test( // 8
+      qt.nearest(tt, 2, 2),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 9
+      qt.nearest(tt, 2.1, 2),
+      { "x": 3, "y": 3, "pr": 17 }
+    ),
+    unit.equals_test( // 10
+      qt.nearest(tt, 3, 3),
+      { "x": 3, "y": 3, "pr": 17 }
+    ),
+    unit.equals_test( // 11
+      qt.nearest(tt, 3.1, 3.1),
+      { "x": 3, "y": 3.1, "pr": 18 }
+    ),
+    unit.equals_test( // 12
+      qt.nearest(tt, 4, 4),
+      { "x": 3, "y": 3.1, "pr": 18 }
+    ),
+    unit.equals_test( // 13
+      qt.nearest(tt, 4, 4, 0.1),
+      undefined
+    ),
+    unit.equals_test( // 14
+      qt.nearest(tt, 0, 1, 1),
+      { "x": 1, "y": 1, "pr": 1 }
+    ),
+    unit.equals_test( // 15
+      qt.nearest(tt, 0, 1, 0.9999),
+      undefined
+    ),
   ];
 
+  var in_region_tests = [
+    unit.equals_test( // 0
+      qt.in_region(tt, [[0, 0], [2, 2]]),
+      [ { "x": 1, "y": 1, "pr": 1 } ]
+    ),
+    unit.equals_test( // 1
+      qt.in_region(tt, [[0, 0], [0.9, 0.9]]),
+      [ ]
+    ),
+    unit.equals_test( // 2
+      qt.in_region(tt, [[0, 0], [3, 3]]),
+      [
+        { "x": 1, "y": 1, "pr": 1 },
+        { "x": 3, "y": 3, "pr": 17 },
+      ]
+    ),
+    unit.equals_test( // 3
+      qt.in_region(tt, [[0, 0], [4, 4]]),
+      [
+        { "x": 1, "y": 1, "pr": 1 },
+        { "x": 3, "y": 3, "pr": 17 },
+        { "x": 3, "y": 3.1, "pr": 18 },
+        { "x": 3, "y": 3.1, "pr": 19 },
+      ]
+    ),
+    unit.equals_test( // 4
+      qt.in_region(tt, [[4.5, 4.5], [5.5, 5.5]]),
+      [ ]
+    ),
+    unit.equals_test( // 5
+      qt.in_region(tt, [[0, 0], [10, 10]]),
+      [
+        { "x": 1, "y": 1, "pr": 1 },
+        { "x": 3, "y": 3, "pr": 17 },
+        { "x": 3, "y": 3.1, "pr": 18 },
+        { "x": 3, "y": 3.1, "pr": 19 },
+        { "x": 1.1, "y": 6, "pr": 3 },
+        { "x": 3, "y": 7, "pr": 2 },
+        { "x": 7.5, "y": 7.5, "pr": 5 },
+        { "x": 9, "y": 9, "pr": 4 },
+      ]
+    ),
+    unit.equals_test( // 6
+      qt.in_region(tt, [[-10, -10], [20, 20]]),
+      [
+        { "x": 1, "y": 1, "pr": 1 },
+        { "x": 3, "y": 3, "pr": 17 },
+        { "x": 3, "y": 3.1, "pr": 18 },
+        { "x": 3, "y": 3.1, "pr": 19 },
+        { "x": 1.1, "y": 6, "pr": 3 },
+        { "x": 3, "y": 7, "pr": 2 },
+        { "x": 7.5, "y": 7.5, "pr": 5 },
+        { "x": 9, "y": 9, "pr": 4 },
+      ]
+    ),
+    unit.equals_test( // 7
+      qt.in_region(tt, [[2.95, 3.05], [3.05, 3.15]]),
+      [
+        { "x": 3, "y": 3.1, "pr": 18 },
+        { "x": 3, "y": 3.1, "pr": 19 },
+      ]
+    ),
+    unit.equals_test( // 8
+      qt.in_region(tt, [[2.95, 3.05], [20, 20]]),
+      [
+        { "x": 3, "y": 3.1, "pr": 18 },
+        { "x": 3, "y": 3.1, "pr": 19 },
+        { "x": 3, "y": 7, "pr": 2 },
+        { "x": 7.5, "y": 7.5, "pr": 5 },
+        { "x": 9, "y": 9, "pr": 4 },
+      ]
+    ),
+    unit.equals_test( // 9
+      qt.in_region(tt, [[0.5, 5], [10, 10]]),
+      [
+        { "x": 1.1, "y": 6, "pr": 3 },
+        { "x": 3, "y": 7, "pr": 2 },
+        { "x": 7.5, "y": 7.5, "pr": 5 },
+        { "x": 9, "y": 9, "pr": 4 },
+      ]
+    ),
+  ];
+
+  // Test visit in pre- and post-order and truncated:
+  var vresults = [];
+  qt.visit(tt, function (node, extent) { vresults.push(extent) });
+
+  // post-order
+  var presults = [];
+  qt.visit(tt, function (node, extent) { presults.push(extent) }, true);
+
+  // truncated
+  var tresults = [];
+  qt.visit(
+    tt,
+    function (node, extent) {
+      tresults.push(extent);
+      if (extent[1][0] - extent[0][0] <= 2.5) { // width <= 2.5
+        return qt.IGNORE_CHILDREN;
+      }
+    }
+  );
+
+  var visit_tests = [
+    unit.equals_test(
+      vresults,
+      [
+        [[0, 0], [10, 10]],
+        [[0, 0], [5, 5]],
+        [[0, 0], [2.5, 2.5]],
+        [[2.5, 2.5], [5, 5]],
+        [[2.5, 2.5], [3.75, 3.75]],
+        [[2.5, 2.5], [3.125, 3.125]],
+        [[0, 5], [5, 10]],
+        [[0, 5], [2.5, 7.5]],
+        [[2.5, 5], [5, 7.5]],
+        [[5, 5], [10, 10]],
+        [[7.5, 7.5], [10, 10]],
+        [[7.5, 7.5], [8.75, 8.75]],
+        [[8.75, 8.75], [10, 10]],
+      ]
+    ),
+    unit.equals_test(
+      presults,
+      [
+        [[0, 0], [2.5, 2.5]],
+        [[2.5, 2.5], [3.125, 3.125]],
+        [[2.5, 2.5], [3.75, 3.75]],
+        [[2.5, 2.5], [5, 5]],
+        [[0, 0], [5, 5]],
+
+        [[0, 5], [2.5, 7.5]],
+        [[2.5, 5], [5, 7.5]],
+        [[0, 5], [5, 10]],
+
+        [[7.5, 7.5], [8.75, 8.75]],
+        [[8.75, 8.75], [10, 10]],
+        [[7.5, 7.5], [10, 10]],
+        [[5, 5], [10, 10]],
+
+        [[0, 0], [10, 10]],
+      ]
+    ),
+    unit.equals_test(
+      tresults,
+      [
+        [[0, 0], [10, 10]],
+        [[0, 0], [5, 5]],
+        [[0, 0], [2.5, 2.5]],
+        [[2.5, 2.5], [5, 5]],
+        [[0, 5], [5, 10]],
+        [[0, 5], [2.5, 7.5]],
+        [[2.5, 5], [5, 7.5]],
+        [[5, 5], [10, 10]],
+        [[7.5, 7.5], [10, 10]],
+      ]
+    ),
+  ];
+
+  var das = qt.density_areas(tt, 2.5); //density areas
+  var md = 3/(2.5*2.5); // max local density
+
+  var density_areas_tests = [
+    unit.equals_test(
+      das,
+      [
+        [ [[0, 0], [10, 10]], [8/100, (8/100)/md], tt.root ],
+        [ [[0, 0], [5, 5]], [4/25, (4/25)/md], tt.root.children[0] ],
+        [
+          [[0, 0], [2.5, 2.5]],
+          [1/6.25, (1/6.25)/md],
+          tt.root.children[0].children[0]
+        ],
+        [
+          [[2.5, 2.5], [5, 5]],
+          [3/6.25, (3/6.25)/md],
+          tt.root.children[0].children[3]
+        ],
+        [
+          [[0, 5], [5, 10]],
+          [2/25, (2/25)/md],
+          tt.root.children[2]
+        ],
+        [
+          [[0, 5], [2.5, 7.5]],
+          [1/6.25, (1/6.25)/md],
+          tt.root.children[2].children[0]
+        ],
+        [
+          [[2.5, 5], [5, 7.5]],
+          [1/6.25, (1/6.25)/md],
+          tt.root.children[2].children[1]
+        ],
+        [
+          [[5, 5], [10, 10]],
+          [2/25, (2/25)/md],
+          tt.root.children[3]
+        ],
+        [
+          [[7.5, 7.5], [10, 10]],
+          [2/6.25, (2/6.25)/md],
+          tt.root.children[3].children[3]
+        ],
+      ]
+    ),
+  ];
 
   return {
     "suites": {
@@ -326,6 +595,9 @@ define(["../unit", "../quadtree"], function (unit, qt) {
       "build_quadtree_tests": build_quadtree_tests,
       "add_item_tests": add_item_tests,
       "nearest_tests": nearest_tests,
+      "in_region_tests": in_region_tests,
+      "visit_tests": visit_tests,
+      "density_areas_tests": density_areas_tests,
     }
   };
 });
