@@ -1,0 +1,16 @@
+# Datalens
+
+Version: pre-alpha
+
+A Javascript + HTML tool for visualizing data interactively.
+
+Reads a JSON list of data items, like so:
+
+[
+  { "coords": [ 1.827, 4.483 ], "prop": "val", "otherprop": "otherval" },
+  ...
+]
+
+Uses the 'coords' properties of each item to display them in a graph, and
+allows viewing the rest of the properties based on a circular selection cursor
+with various grouping modalities.

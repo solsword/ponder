@@ -1,0 +1,63 @@
+/* Ponder CSS */
+
+/* Bits stolen from:
+ * http://bl.ocks.org/weiglemc/6185069
+ */
+
+/* High-level styles */
+
+body {
+  font: 14pt sans-serif;
+  color: #000;
+  background: #eee;
+  margin: 16pt auto 0pt auto;
+  padding: 0pt;
+  width: 100%;
+  height: 100%;
+  display: block;
+  text-align: center;
+}
+
+/* Active elements */
+
+.container {
+  margin: 0pt;
+  padding: 0pt;
+}
+
+.window {
+  width: 46%;
+  height: 800px;
+  display: inline-block;
+  margin: 1%;
+  padding: 0pt;
+  background: #fff;
+}
+
+#lens {
+  fill: #99999922;
+  stroke: #666;
+}
+
+#lens_shadow {
+  fill: #aaaaaa22;
+  stroke: #888;
+}
+
+/* SVG elements */
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.dot {
+  stroke: #000;
+}
+
+.label {
+  stroke: none;
+  fill: #000;
+}

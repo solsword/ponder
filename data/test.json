@@ -1,0 +1,5 @@
+[
+  { "coords": [ 1.5, 2.0 ], "order": "first" },
+  { "coords": [ 0.5, 0.5 ], "order": "second" },
+  { "coords": [ 0.25, 1.75 ], "order": "third" }
+]
