@@ -177,9 +177,9 @@ function (d3, utils, qt, viz) {
 
     // TODO: Give user control over which info & how?
     // Extract & transform data:
-    //var counts = viz.value_counts(items, "stuff");
+    var counts = viz.value_counts(items, "stuff");
     //var counts = viz.value_counts(items, "activity");
-    var counts = viz.value_counts(items, "purchased");
+    //var counts = viz.value_counts(items, "purchased");
 
     // Display info:
     viz.draw_histogram(
