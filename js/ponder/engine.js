@@ -141,6 +141,7 @@ function (d3, utils, qt, viz) {
     var cx = LENS.attr("cx");
     var cy = LENS.attr("cy");
     var r = LENS.attr("r");
+    console.log(cx + ", " + cy + ": " + r);
     return get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
@@ -158,8 +159,8 @@ function (d3, utils, qt, viz) {
   function left_motion() {
     var coords = d3.mouse(this);
 
-    SHADOW.attr("cx", coords[0]);
-    SHADOW.attr("cy", coords[1]);
+    SHADOW.attr("cx", coords[0] - MARGIN);
+    SHADOW.attr("cy", coords[1] - MARGIN);
   }
 
   function left_click() {
@@ -171,14 +172,31 @@ function (d3, utils, qt, viz) {
     // Collect items:
     var items = get_selected();
 
-    console.log(items);
+    console.log(items.length + " items selected");
+
+    // DEBUG:
+    var cx = LENS.attr("cx");
+    var cy = LENS.attr("cx");
+    var r = LENS.attr("r");
+    var tc = 0;
+    for (var i = 0; i < DATA.length; ++i) {
+      var d = DATA[i];
+      var x = QUADTREE.getx(d);
+      var y = QUADTREE.gety(d);
+      var dx = x - cx;
+      var dy = y - cy;
+      if (Math.sqrt(dx * dx + dy * dy) <= r) {
+        tc += 1;
+      }
+    }
+
+    console.log("Should be: " + tc + " items");
 
     // TODO: Give user control over which info & how?
     // Extract & transform data:
-    var counts = viz.value_counts(items, "activity");
+    var counts = viz.value_counts(items, "stuff");
+    //var counts = viz.value_counts(items, "activity");
     //var counts = viz.value_counts(items, "purchased");
-
-    console.log(counts);
 
     // Display info:
     viz.draw_histogram(
@@ -294,8 +312,9 @@ function (d3, utils, qt, viz) {
       );
 
     // Draw the quadtree:
+    var dplot = d3.select("#qt_density");
     viz.draw_quadtree(
-      d3.select("#qt_density"),
+      dplot,
       QUADTREE,
       CONT_COLOR_SCALE,
       VIZ_RESOLUTION,
@@ -303,7 +322,7 @@ function (d3, utils, qt, viz) {
     );
 
     // Add lenses last!
-    LEFT_WINDOW.append("g")
+    dplot.append("g")
       .attr("id", "lens_group");
 
     LENS = d3.select("#lens_group").append("circle")

@@ -498,6 +498,11 @@ define([], function () {
   return {
     "DEFAULT_RESOLUTION_LIMIT": DEFAULT_RESOLUTION_LIMIT,
     "IGNORE_CHILDREN": IGNORE_CHILDREN,
+    "region_contains": region_contains,
+    "region_envolops": region_envolops,
+    "quad_index": quad_index,
+    "quad_indices": quad_indices,
+    "sub_extent": sub_extent,
     "build_quadtree": build_quadtree,
     "add_item": add_item,
     "nearest": nearest,
