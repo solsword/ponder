@@ -9,14 +9,14 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
   // Default color scale
   DEFAULT_COLOR_SCALE = d3.interpolateMagma;
 
-  // Max number of points to draw as points instead of just as density colors
-  DEFAULT_MAX_POINTS = 512;
-
   // The non-breaking space character
   NBSP = "\u00A0";
 
-  // The radius out outlier points in a quadtree visualization
-  OUTLIER_RADIUS = 1;
+  // The radius of outlier points in a quadtree visualization
+  QT_OUTLIER_RADIUS = 1;
+
+  // Radius used for quadtree points when points_allowed is set to undefined.
+  QT_POINT_RADIUS = 1.5;
 
   /*
    * Helper functions
@@ -65,9 +65,11 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
    */
 
   // Replaces the contents of the given SVG element with a visualization of the
-  // given quadtree. The color_scale, min_resolution, and points_allowed
-  // arguments may be omitted, and will default to the DEFAULT_COLOR_SCALE,
-  // DEFAULT_MIN_RESOLUTION, and DEFAULT_MAX_POINTS values if not supplied.
+  // given quadtree. The color_scale and min_resolution arguments are optional,
+  // and will default to DEFAULT_COLOR_SCALE and DEFAULT_MIN_RESOLUTION if not
+  // supplied. points_allowed may also be left out, in which case each leaf of
+  // the quadtree will draw a single point, and so the quadtree's build-in
+  // resolution will be the only limit.
   function draw_quadtree(
     element,
     tree,
@@ -81,10 +83,6 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
 
     if (min_resolution == undefined) {
       min_resolution = DEFAULT_MIN_RESOLUTION;
-    }
-
-    if (points_allowed == undefined) {
-      points_allowed = DEFAULT_MAX_POINTS;
     }
 
     // clear out any old stuff:
@@ -103,38 +101,55 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
     );
     for (var i = 0; i < rects.length; ++i) {
       var r = rects[i];
+
       var ext = r[0];
       var den = r[1];
-      var node = r[2];
+      var cen = r[2];
+      var node = r[3];
+
       var abs_den = den[0];
       var rel_den = den[1];
+
       var x = ext[0][0];
       var y = ext[0][1];
       var w = ext[1][0] - ext[0][0];
       var h = ext[1][1] - ext[0][1];
-      var c = color_scale(rel_den);
-      element.append("rect")
-        .attr("class", "density_rectangle")
-        .attr("x", x)
-        .attr("y", y)
-        .attr("width", w)
-        .attr("height", h)
-        .attr("fill", c);
+
       // Draw individual points if the density is low enough and we're at a
       // leaf node:
-      if (abs_den < low_density_threshold && node.hasOwnProperty("items")) {
-        var pc = color_scale(1.0);
-        var items = node.items;
-        for (var j = 0; j < items.length; ++j) {
-          var it = items[j];
-          var x = tree.getx(it);
-          var y = tree.gety(it);
-          element.append("circle")
-            .attr("class", "point")
-            .attr("cx", x)
-            .attr("cy", y)
-            .attr("r", OUTLIER_RADIUS)
-            .attr("fill", pc);
+      if (points_allowed == undefined) {
+        var c = color_scale(0.2 + rel_den * 0.8); // crop the scale a bit
+        var x = cen[0];
+        var y = cen[1];
+        element.append("circle")
+          .attr("class", "point")
+          .attr("cx", x)
+          .attr("cy", y)
+          .attr("r", QT_POINT_RADIUS * (1 + rel_den))
+          .attr("fill", c);
+      } else {
+        var c = color_scale(rel_den);
+        element.append("rect")
+          .attr("class", "density_rectangle")
+          .attr("x", x)
+          .attr("y", y)
+          .attr("width", w)
+          .attr("height", h)
+          .attr("fill", c);
+        if (abs_den < low_density_threshold && node.hasOwnProperty("items")) {
+          var pc = color_scale(1.0);
+          var items = node.items;
+          for (var j = 0; j < items.length; ++j) {
+            var it = items[j];
+            var x = tree.getx(it);
+            var y = tree.gety(it);
+            element.append("circle")
+              .attr("class", "point")
+              .attr("cx", x)
+              .attr("cy", y)
+              .attr("r", QT_OUTLIER_RADIUS)
+              .attr("fill", pc);
+          }
         }
       }
     }

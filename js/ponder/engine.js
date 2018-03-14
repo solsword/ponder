@@ -22,7 +22,6 @@ function (d3, utils, qt, viz) {
   var MIN_REGION_SIDE = 1; // when to stop building quadtree
   var MAX_REGION_DISTORTION = 8; // when to rebuild quadtree
   var VIZ_RESOLUTION = 1; // min pixels per visualization unit
-  var POINTS_ALLOWED = 512; // How many points we allow to be drawn on average
 
   // Visualization limits
   var HIST_BAR_LIMIT = 30; // max # of bars
@@ -54,6 +53,18 @@ function (d3, utils, qt, viz) {
   var DISC_COLOR_SCALE;
   var CONT_COLOR_SCALE;
   var COLOR_VALUE;
+
+  // Color constants:
+  // TODO: Pick a scheme, or let the user decide!
+  // cream/blue
+  //var SCALE_LIGHT_END = d3.rgb(255, 245, 230);
+  //var SCALE_DARK_END = d3.rgb(0, 40, 190);
+  // cream/maroon
+  //var SCALE_LIGHT_END = d3.rgb(255, 245, 230);
+  //var SCALE_DARK_END = d3.rgb(64, 7, 0);
+  // sky/dark blue
+  var SCALE_LIGHT_END = d3.rgb(242, 249, 255);
+  var SCALE_DARK_END = d3.rgb(0, 8, 52);
 
   // Windows
   var LEFT_WINDOW;
@@ -302,8 +313,7 @@ function (d3, utils, qt, viz) {
       dplot,
       QUADTREE,
       CONT_COLOR_SCALE,
-      VIZ_RESOLUTION,
-      POINTS_ALLOWED
+      VIZ_RESOLUTION
     );
 
     // Add lenses last!
@@ -361,9 +371,11 @@ function (d3, utils, qt, viz) {
     //CONT_COLOR_SCALE = d3.interpolateViridis;
     //CONT_COLOR_SCALE = d3.interpolateBlues; // missing?!?
     CONT_COLOR_SCALE = function(t) {
+      // TODO: Try a log-transform here? (or for some uses?)
       //return d3.interpolateInferno(1-t);
       //return d3.interpolateInferno(t);
-      return d3.interpolate(d3.rgb(255, 245, 230), d3.rgb(0, 40, 190))(t);
+      return d3.interpolate(SCALE_LIGHT_END, SCALE_DARK_END)(t);
+      //return d3.interpolate(SCALE_DARK_END, SCALE_LIGHT_END)(t);
     }
     COLOR_VALUE = function(d) {
       if (COLOR_BY != undefined && d.hasOwnProperty(COLOR_BY)) {

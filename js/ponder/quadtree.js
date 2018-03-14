@@ -424,38 +424,46 @@ define([], function () {
   }
 
   // Returns a list of rectangles paired with density and relative (0--1)
-  // density values, along with references to the quadtree nodes they came
-  // from. Rectangles overlap, and larger (containing) rectangles come earlier
-  // in the list, so that they can be drawn in order. This method returns one
-  // rectangle for each node in the tree. The max_resolution argument is
-  // optional, but if given, no rectangles smaller than that in either
-  // dimension will be returned. The base_density is also optional, but if
-  // given, it establishes a default base density value, which will be used as
-  // the max density unless a denser region exists.
+  // density values, along with centroids and references to the quadtree nodes
+  // they came from. Rectangles overlap, and larger (containing) rectangles
+  // come earlier in the list, so that they can be drawn in order. This method
+  // returns one rectangle for each node in the tree. The max_resolution
+  // argument is optional, but if given, no rectangles smaller than that in
+  // either dimension will be returned. The base_density is also optional, but
+  // if given, it establishes a default base density value, which will be used
+  // as the max density unless a denser region exists.
   //
-  // Results might look like:
+  // Results for a 1x1 region with points at:
+  //   (0.6, 0.6),
+  //   (0.8, 0.6),
+  //   (0.8, 0.7)
+  // would look like:
   //
   // [
   //   [
   //     [[0, 0], [1, 1]],
   //     [3, 0.09375],
+  //     [0.7333333333333334, 0.6333333333333333],
   //     <node>
   //   ],
   //
   //   [
   //     [[0.5, 0.5], [1, 1]],
   //     [3, 0.375],
+  //     [0.7333333333333334, 0.6333333333333333],
   //     <node>
   //   ],
   //
   //   [
   //     [[0.5, 0.5], [0.75, 0.75]],
   //     [1, 0.5],
+  //     [0.6, 0.6],
   //     <node>
   //   ],
   //   [
   //     [[0.75, 0.5], [1, 0.75]],
   //     [2, 1],
+  //     [0.8, 0.65],
   //     <node>
   //   ]
   // ]
@@ -463,19 +471,57 @@ define([], function () {
   function density_areas(tree, max_resolution, base_density) {
     results = [];
     var max_density = base_density;
+    var centroids = {};
+    // First visit: post-order to determine max density and compute centroids
     visit(
       tree,
       function (node, extent) {
+        // TODO: Is this too slow without the use of IGNORE_CHILDREN for
+        // 100,000+ node data where the max_resolution is supposed to help
+        // things?
+
+        // density
         var w = extent[1][0] - extent[0][0];
         var h = extent[1][1] - extent[0][1];
-        if (w < max_resolution || h < max_resolution) { // undefined works
-          return IGNORE_CHILDREN; // doesn't count
+        if (
+          max_resolution == undefined
+       || (w >= max_resolution && h >= max_resolution)
+        ) {
+          var density = node.count / (w * h);
+          if (max_density == undefined || density > max_density) {
+            max_density = density;
+          }
+        } // otherwise skip density calculation
+
+        // centroid
+        if (node.hasOwnProperty("children")) {
+          var cx = 0;
+          var cy = 0;
+          for (var i = 0; i < node.children.length; ++i) {
+            var k = "" + sub_extent(extent, i);
+            if (centroids.hasOwnProperty(k)) {
+              var cen = centroids[k];
+              cx += cen[0] * node.children[i].count;
+              cy += cen[1] * node.children[i].count;
+            } // otherwise must have been an empty child
+          }
+          cx /= node.count;
+          cy /= node.count;
+          centroids["" + extent] = [cx, cy];
+        } else {
+          var cx = 0;
+          var cy = 0;
+          for (var i = 0; i < node.items.length; ++i) {
+            var it = node.items[i];
+            cx += tree.getx(it);
+            cy += tree.gety(it);
+          }
+          cx /= node.count;
+          cy /= node.count;
+          centroids["" + extent] = [cx, cy];
         }
-        var density = node.count / (w * h);
-        if (max_density == undefined || density > max_density) {
-          max_density = density;
-        }
-      }
+      },
+      true // post-order traversal
     );
     visit(
       tree,
@@ -491,6 +537,7 @@ define([], function () {
           [
             extent,
             [density, rel_density],
+            centroids["" + extent],
             node
           ]
         );
