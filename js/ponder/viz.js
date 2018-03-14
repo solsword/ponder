@@ -22,14 +22,31 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
    * Helper functions
    */
 
+  function format_number(n) {
+    if (Number.isInteger(n)) {
+      if (n < 100000) {
+        return n;
+      } else {
+        return n.toPrecision(4);
+      }
+    } else {
+      if (n < 10000) {
+        return n.toPrecision(4);
+      } else {
+        return n.toPrecision(3);
+      }
+    }
+  }
+
   /*
    * Data transformation functions
    */
 
   // Given an array-of-values or map-of-values->counts field, creates bars for
-  // a histogram showing how many times each value appears among the given
-  // items.
-  function value_counts(items, field) {
+  // a histogram showing the sum of each value. If 'just_tally' is given with a
+  // map field, the map values are ignored and 1 unit is counted for each time
+  // a key appears.
+  function value_sums(items, field, just_tally) {
     var counts = {};
     for (var i = 0; i < items.length; ++i) { var it = items[i];
       var fv = it[field];
@@ -48,9 +65,17 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
           for (var val in fv) {
             if (fv.hasOwnProperty(val)) {
               if (counts.hasOwnProperty(val)) {
-                counts[val] += fv[val];
+                if (just_tally) {
+                  counts[val] += 1;
+                } else {
+                  counts[val] += fv[val];
+                }
               } else {
-                counts[val] = fv[val];
+                if (just_tally) {
+                  counts[val] = 1;
+                } else {
+                  counts[val] = fv[val];
+                }
               }
             }
           }
@@ -118,7 +143,7 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
       // Draw individual points if the density is low enough and we're at a
       // leaf node:
       if (points_allowed == undefined) {
-        var c = color_scale(0.2 + rel_den * 0.8); // crop the scale a bit
+        var c = color_scale(rel_den);
         var x = cen[0];
         var y = cen[1];
         element.append("circle")
@@ -156,14 +181,47 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
   }
 
   // Draws a horizontal histogram with value labels on the left, sorting bars
-  // by their height. color_scale is optional and the DEFAULT_COLOR_SCALE will
-  // be used if it's left out. bar_limit is also optional and defaults to no
-  // limit, but a limit of around 30-50 is suggested depending on the available
-  // area so that label text doesn't overlap. bar_limit may be given explicitly
-  // as 'undefined' to set no limit.
-  function draw_histogram(element, counts, bar_limit, color_scale) {
+  // by their height. Optional parameters:
+  //    bar_limit
+  //      Crops off bars beyond the limit. Missing = no limit. A value of
+  //      ~30-50 is suggested to avoid text overlap. Can give explicitly as
+  //      'undefined' if you want to pass other optional options.
+  //    color_scale (defaults to DEFAULT_COLOR_SCALE)
+  //      Used to color the bars
+  //    normalize
+  //      If it's a single value, each count is divided. Pass the number of
+  //      source items here to graph averages instead of total counts. Can also
+  //      be a map from values to numbers to use a different divisor for each
+  //      value. Defaults to 1 (no normalization).
+  function draw_histogram(element, counts, bar_limit, color_scale, normalize) {
     if (color_scale == undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
+    }
+
+    if (normalize == undefined) {
+      normalize = 1;
+    }
+
+    if (typeof normalize === "object") {
+      function bar_value(value) {
+        return counts[value] / normalize[value];
+      }
+      function bar_label(value) {
+        return NBSP + format_number(bar_value(value)) + "×" + normalize[value];
+      }
+    } else {
+      function bar_value(value) {
+        return counts[value] / normalize;
+      }
+      if (normalize == 1) {
+        function bar_label(value) {
+          return NBSP + format_number(bar_value(value));
+        }
+      } else {
+        function bar_label(value) {
+          return NBSP + format_number(bar_value(value)) + "×" + normalize;
+        }
+      }
     }
 
     // clear out any old stuff:
@@ -173,9 +231,10 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
     var max = undefined;
     for (var key in counts) {
       if (counts.hasOwnProperty(key)) {
-        pairs.push([key, counts[key]]);
-        if (max == undefined || max < counts[key]) {
-          max = counts[key];
+        var bv = bar_value(key);
+        pairs.push([key, bv]);
+        if (max == undefined || max < bv) {
+          max = bv;
         }
       }
     }
@@ -195,8 +254,8 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
     var bih = bh - 2*bpad; // bar inner height
 
     var ew = element.attr("width");
-    var bx = ew * 0.2 // 20% for value labels
-    var bw = ew * 0.75; // 75% width (save extra 5% for count labels)
+    var bx = ew * 0.25 // 25% for value labels
+    var bw = ew * 0.65; // 75% width (save extra 10% for count labels)
 
     var bargroup = element.selectAll("g")
       .data(pairs)
@@ -230,11 +289,11 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
       .style("text-anchor", "start")
-      .text(function(d) { return NBSP + d[1].toPrecision(3); });
+      .text(function(d) { return bar_label(d[0]); });
   }
 
   return {
-    "value_counts": value_counts,
+    "value_sums": value_sums,
     "draw_quadtree": draw_quadtree,
     "draw_histogram": draw_histogram,
   };

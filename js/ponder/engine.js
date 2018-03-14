@@ -63,7 +63,10 @@ function (d3, utils, qt, viz) {
   //var SCALE_LIGHT_END = d3.rgb(255, 245, 230);
   //var SCALE_DARK_END = d3.rgb(64, 7, 0);
   // sky/dark blue
-  var SCALE_LIGHT_END = d3.rgb(242, 249, 255);
+  //var SCALE_LIGHT_END = d3.rgb(242, 249, 255);
+  //var SCALE_DARK_END = d3.rgb(0, 8, 52);
+  // light/dark blue
+  var SCALE_LIGHT_END = d3.rgb(193, 201, 248);
   var SCALE_DARK_END = d3.rgb(0, 8, 52);
 
   // Windows
@@ -159,6 +162,30 @@ function (d3, utils, qt, viz) {
     return get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
+  function update_right_window() {
+    // Collect items:
+    var items = get_selected();
+
+    // TODO: Give user control over which info & how?
+    // Extract & transform data:
+    var counts = viz.value_sums(items, "stuff");
+    var normalize = viz.value_sums(items, "stuff", true); // just tally
+    //var counts = viz.value_sums(items, "activity");
+    //var normalize = viz.value_sums(items, "activity", true); // just tally
+    //var counts = viz.value_sums(items, "purchased");
+    //var normalize = viz.value_sums(items, "purchased", true); // just tally
+
+    // Display info:
+    viz.draw_histogram(
+      d3.select("#details_graph"),
+      counts,
+      HIST_BAR_LIMIT,
+      function(t) { return CONT_COLOR_SCALE(1-t); },
+      //function(t) { return CONT_COLOR_SCALE(t); },
+      normalize
+    );
+  }
+
   /*
    * Event handlers
    */
@@ -183,23 +210,7 @@ function (d3, utils, qt, viz) {
     LENS.attr("cy", SHADOW.attr("cy"));
     LENS.attr("r", SHADOW.attr("r"));
 
-    // Collect items:
-    var items = get_selected();
-
-    // TODO: Give user control over which info & how?
-    // Extract & transform data:
-    var counts = viz.value_counts(items, "stuff");
-    //var counts = viz.value_counts(items, "activity");
-    //var counts = viz.value_counts(items, "purchased");
-
-    // Display info:
-    viz.draw_histogram(
-      d3.select("#details_graph"),
-      counts,
-      HIST_BAR_LIMIT,
-      function(t) { return CONT_COLOR_SCALE(1-t); }
-      //function(t) { return CONT_COLOR_SCALE(t); }
-    );
+    update_right_window();
   }
 
   function left_scroll() {
@@ -346,6 +357,9 @@ function (d3, utils, qt, viz) {
       )
       .attr("width", utils.get_width(RIGHT_WINDOW) - 2*MARGIN)
       .attr("height", utils.get_height(RIGHT_WINDOW) - 2*MARGIN);
+
+    // Update the right window using the starting lens
+    update_right_window();
   }
 
   // Main setup
