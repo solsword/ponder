@@ -7,7 +7,6 @@ function (d3, utils, qt, viz) {
    */
 
   // The data:
-  var DATA;
   var DXRANGE = [ undefined, undefined ];
   var DYRANGE = [ undefined, undefined ];
 
@@ -69,9 +68,10 @@ function (d3, utils, qt, viz) {
   var SCALE_LIGHT_END = d3.rgb(193, 201, 248);
   var SCALE_DARK_END = d3.rgb(0, 8, 52);
 
-  // Windows
+  // DOM objects
   var LEFT_WINDOW;
   var RIGHT_WINDOW;
+  var CONTROLS;
 
   // The lens circle & shadow
   var LENS;
@@ -168,12 +168,12 @@ function (d3, utils, qt, viz) {
 
     // TODO: Give user control over which info & how?
     // Extract & transform data:
-    var counts = viz.value_sums(items, "stuff");
-    var normalize = viz.value_sums(items, "stuff", true); // just tally
+    //var counts = viz.value_sums(items, "stuff");
+    //var normalize = viz.value_sums(items, "stuff", true); // just tally
     //var counts = viz.value_sums(items, "activity");
     //var normalize = viz.value_sums(items, "activity", true); // just tally
-    //var counts = viz.value_sums(items, "purchased");
-    //var normalize = viz.value_sums(items, "purchased", true); // just tally
+    var counts = viz.value_sums(items, "purchased");
+    var normalize = viz.value_sums(items, "purchased", true); // just tally
 
     // Display info:
     viz.draw_histogram(
@@ -182,7 +182,9 @@ function (d3, utils, qt, viz) {
       HIST_BAR_LIMIT,
       function(t) { return CONT_COLOR_SCALE(1-t); },
       //function(t) { return CONT_COLOR_SCALE(t); },
-      normalize
+      //1
+      items.length
+      //normalize
     );
   }
 
@@ -200,17 +202,21 @@ function (d3, utils, qt, viz) {
   function left_motion() {
     var coords = d3.mouse(this);
 
-    SHADOW.attr("cx", coords[0] - MARGIN);
-    SHADOW.attr("cy", coords[1] - MARGIN);
+    if (SHADOW != undefined) {
+      SHADOW.attr("cx", coords[0] - MARGIN);
+      SHADOW.attr("cy", coords[1] - MARGIN);
+    }
   }
 
   function left_click() {
-    // Update the lens
-    LENS.attr("cx", SHADOW.attr("cx"));
-    LENS.attr("cy", SHADOW.attr("cy"));
-    LENS.attr("r", SHADOW.attr("r"));
+    if (LENS != undefined) {
+      // Update the lens
+      LENS.attr("cx", SHADOW.attr("cx"));
+      LENS.attr("cy", SHADOW.attr("cy"));
+      LENS.attr("r", SHADOW.attr("r"));
 
-    update_right_window();
+      update_right_window();
+    }
   }
 
   function left_scroll() {
@@ -228,12 +234,35 @@ function (d3, utils, qt, viz) {
       dy *= PIXELS_PER_LINE * LINES_PER_PAGE;
     }
 
-    var r = utils.get_n_attr(SHADOW, "r");
-    r *= (1 + 0.01 * dy / SCROLL_FACTOR);
-    if (r < MIN_RADIUS) {
-      r = MIN_RADIUS;
+    if (SHADOW != undefined) {
+      var r = utils.get_n_attr(SHADOW, "r");
+      r *= (1 + 0.01 * dy / SCROLL_FACTOR);
+      if (r < MIN_RADIUS) {
+        r = MIN_RADIUS;
+      }
+      SHADOW.attr("r", r);
     }
-    SHADOW.attr("r", r);
+  }
+
+  function file_chosen() {
+    setTimeout(eventually_process_uploaded_file, 100, d3.select(this));
+  }
+
+  function eventually_process_uploaded_file(element) {
+    var files = element.node().files;
+    if (files === null || files === undefined || files.length < 1) {
+      setTimeout(eventually_process_uploaded_file, THUNK_MS, element);
+    } else {
+      var first = files[0];
+      var fr = new FileReader();
+      fr.onload = function (e) {
+        var file_text = e.target.result;
+        // TODO: Multiple formats?!?
+        var json = JSON.parse(file_text);
+        populate_data(json);
+      };
+      fr.readAsText(first);
+    }
   }
 
   /*
@@ -241,19 +270,20 @@ function (d3, utils, qt, viz) {
    */
 
   // Called after data is loaded
-  function finish_setup() {
+  function populate_data(data) {
     resize();
 
-    DXRANGE[0] = d3.min(DATA, x_value);
-    DXRANGE[1] = d3.max(DATA, x_value);
-    DYRANGE[0] = d3.min(DATA, y_value);
-    DYRANGE[1] = d3.max(DATA, y_value);
+    DXRANGE[0] = d3.min(data, x_value);
+    DXRANGE[1] = d3.max(data, x_value);
+    DYRANGE[0] = d3.min(data, y_value);
+    DYRANGE[1] = d3.max(data, y_value);
     var xr = DXRANGE[1] - DXRANGE[0];
     var yr = DYRANGE[1] - DYRANGE[0];
     LEFT_X_SCALE.domain([DXRANGE[0] - DPAD * xr, DXRANGE[1] + DPAD * xr]);
     LEFT_Y_SCALE.domain([DYRANGE[0] - DPAD * yr, DYRANGE[1] + DPAD * yr]);
 
-    // Left graph:
+    // Reset left window:
+    LEFT_WINDOW.selectAll("*").remove();
 
     // x-axis:
     LEFT_WINDOW.append("g")
@@ -287,23 +317,11 @@ function (d3, utils, qt, viz) {
       .style("text-anchor", "end")
       .text("Y");
 
-    // Draw dots:
-    /*
-    LEFT_WINDOW.selectAll(".dot")
-      .data(DATA)
-    .enter().append("circle")
-      .attr("class", "dot")
-      .attr("r", 1)
-      .attr("cx", function (d) { return MARGIN + LEFT_X_SCALE(x_value(d)) })
-      .attr("cy", function (d) { return MARGIN + LEFT_Y_SCALE(y_value(d)) })
-      .style("fill", function (d) { return COLOR_SCALE(COLOR_VALUE(d)); });
-    // */
-
     // Build a quadtree:
     function getx(d) { return LEFT_X_SCALE(x_value(d)); };
     function gety(d) { return LEFT_Y_SCALE(y_value(d)); };
     QUADTREE = qt.build_quadtree(
-      DATA,
+      data,
       get_left_extent(),
       getx,
       gety,
@@ -345,7 +363,8 @@ function (d3, utils, qt, viz) {
       .attr("r", "20")
       .attr("z-index", "10");
 
-    // Right graph:
+    // Reset right window:
+    RIGHT_WINDOW.selectAll("*").remove();
 
     // the details_graph shows details on the contents of the lens
     RIGHT_WINDOW.append("g")
@@ -366,6 +385,7 @@ function (d3, utils, qt, viz) {
   function do_viz(data_url) {
     LEFT_WINDOW = d3.select("#left_window");
     RIGHT_WINDOW = d3.select("#right_window");
+    CONTROLS = d3.select("#controls");
 
     LEFT_X_SCALE = d3.scaleLinear().range(
       [0, utils.get_width(LEFT_WINDOW) - 2*MARGIN]
@@ -399,17 +419,6 @@ function (d3, utils, qt, viz) {
       }
     };
 
-    // Load data:
-    d3.json(data_url, function (error, json) {
-      if (error) {
-        throw error;
-      } else {
-        DATA = json;
-
-        finish_setup();
-      }
-    });
-
     // bind events:
     d3.select(window)
       .on("resize", resize);
@@ -417,6 +426,13 @@ function (d3, utils, qt, viz) {
       .on("click", left_click)
       .on("mousemove", left_motion)
       .on("mousewheel", left_scroll);
+    CONTROLS
+    d3.select("#data_file")
+      .on("change", file_chosen)
+      .on(
+        "click touchstart",
+        function () { d3.select(this).attr("value", ""); }
+      );
   }
 
   return {
