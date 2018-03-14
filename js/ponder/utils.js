@@ -30,10 +30,15 @@ define(["d3/d3"], function (d3) {
     return Number.parseFloat(obj.attr(attr));
   }
 
+  function get_selected_value(select) {
+    return select.options[select.selectedIndex].value;
+  }
+
   return {
     "get_bbox": get_bbox,
     "get_width": get_width,
     "get_height": get_height,
     "get_n_attr": get_n_attr,
+    "get_selected_value": get_selected_value,
   };
 });

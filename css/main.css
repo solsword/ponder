@@ -20,7 +20,7 @@ body {
 
 /* Active elements */
 
-.container {
+.windows {
   margin: 0pt;
   padding: 0pt;
 }
@@ -35,9 +35,21 @@ body {
 }
 
 #controls {
+  margin: 0pt;
+  padding: 0pt;
+}
+
+.control_panel {
   text-align: left;
-  padding: 8pt 16pt 8pt 16pt;
+  width: 40%;
+  display: inline-block;
+  margin: 0pt 4% 8pt 4%;
+  padding: 8pt;
   background: #fff;
+}
+
+.controls_row {
+  margin-bottom: 4pt;
 }
 
 #lens {

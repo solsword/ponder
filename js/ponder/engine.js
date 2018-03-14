@@ -49,8 +49,12 @@ function (d3, utils, qt, viz) {
   var RIGHT_Y_SCALE;
 
   // Color transforms
-  var DISC_COLOR_SCALE;
-  var CONT_COLOR_SCALE;
+  var LEFT_COLOR_SCALE;
+  var LEFT_START_COLOR = d3.rgb(193, 201, 248);
+  var LEFT_END_COLOR = d3.rgb(0, 8, 52);
+  var RIGHT_COLOR_SCALE;
+  var RIGHT_START_COLOR = d3.rgb(193, 201, 248);
+  var RIGHT_END_COLOR = d3.rgb(0, 8, 52);
   var COLOR_VALUE;
 
   // Color constants:
@@ -65,13 +69,14 @@ function (d3, utils, qt, viz) {
   //var SCALE_LIGHT_END = d3.rgb(242, 249, 255);
   //var SCALE_DARK_END = d3.rgb(0, 8, 52);
   // light/dark blue
-  var SCALE_LIGHT_END = d3.rgb(193, 201, 248);
-  var SCALE_DARK_END = d3.rgb(0, 8, 52);
+  //var SCALE_LIGHT_END = d3.rgb(193, 201, 248);
+  //var SCALE_DARK_END = d3.rgb(0, 8, 52);
 
   // DOM objects
   var LEFT_WINDOW;
   var RIGHT_WINDOW;
-  var CONTROLS;
+  var LEFT_CONTROLS;
+  var RIGHT_CONTROLS;
 
   // The lens circle & shadow
   var LENS;
@@ -162,6 +167,54 @@ function (d3, utils, qt, viz) {
     return get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
+  function update_left_window() {
+    if (LENS != undefined) {
+      var lens_x = utils.get_n_attr(LENS, "cx");
+      var lens_y = utils.get_n_attr(LENS, "cy");
+      var lens_r = utils.get_n_attr(LENS, "r");
+    } else {
+      var lens_x = 70;
+      var lens_y = 70;
+      var lens_r = 20;
+    }
+    if (SHADOW != undefined) {
+      var shadow_x = utils.get_n_attr(SHADOW, "cx");
+      var shadow_y = utils.get_n_attr(SHADOW, "cy");
+      var shadow_r = utils.get_n_attr(SHADOW, "r");
+    } else {
+      var shadow_x = 70;
+      var shadow_y = 70;
+      var shadow_r = 20;
+    }
+
+    // Draw the quadtree:
+    var dplot = d3.select("#qt_density");
+    viz.draw_quadtree(
+      dplot,
+      QUADTREE,
+      function(t) {return d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t);},
+      VIZ_RESOLUTION
+    );
+
+    // Add lenses last!
+    dplot.append("g")
+      .attr("id", "lens_group");
+
+    LENS = d3.select("#lens_group").append("circle")
+      .attr("id", "lens")
+      .attr("cx", lens_x)
+      .attr("cy", lens_y)
+      .attr("r", lens_r)
+      .attr("z-index", "10");
+
+    SHADOW = d3.select("#lens_group").append("circle")
+      .attr("id", "lens_shadow")
+      .attr("cx", shadow_x)
+      .attr("cy", shadow_y)
+      .attr("r", shadow_r)
+      .attr("z-index", "10");
+  }
+
   function update_right_window() {
     // Collect items:
     var items = get_selected();
@@ -180,8 +233,7 @@ function (d3, utils, qt, viz) {
       d3.select("#details_graph"),
       counts,
       HIST_BAR_LIMIT,
-      function(t) { return CONT_COLOR_SCALE(1-t); },
-      //function(t) { return CONT_COLOR_SCALE(t); },
+      function(t) { return RIGHT_COLOR_SCALE(t); },
       //1
       items.length
       //normalize
@@ -265,6 +317,21 @@ function (d3, utils, qt, viz) {
     }
   }
 
+  function left_cattr_selected() {
+    var val = utils.get_selected_value(this);
+    // TODO: HERE
+  }
+
+  function left_start_color_selected() {
+    LEFT_START_COLOR = this.value;
+    update_left_window();
+  }
+
+  function left_end_color_selected() {
+    LEFT_END_COLOR = this.value;
+    update_left_window();
+  }
+
   /*
    * Setup functions
    */
@@ -303,7 +370,7 @@ function (d3, utils, qt, viz) {
 
     // y-axis
     LEFT_WINDOW.append("g")
-      .attr("class", "x axis")
+      .attr("class", "y axis")
       .attr(
         "transform",
         "translate(" + MARGIN + "," + MARGIN + ")"
@@ -336,32 +403,7 @@ function (d3, utils, qt, viz) {
         "translate(" + MARGIN + "," + MARGIN + ")"
       );
 
-    // Draw the quadtree:
-    var dplot = d3.select("#qt_density");
-    viz.draw_quadtree(
-      dplot,
-      QUADTREE,
-      CONT_COLOR_SCALE,
-      VIZ_RESOLUTION
-    );
-
-    // Add lenses last!
-    dplot.append("g")
-      .attr("id", "lens_group");
-
-    LENS = d3.select("#lens_group").append("circle")
-      .attr("id", "lens")
-      .attr("cx", "70")
-      .attr("cy", "70")
-      .attr("r", "20")
-      .attr("z-index", "10");
-
-    SHADOW = d3.select("#lens_group").append("circle")
-      .attr("id", "lens_shadow")
-      .attr("cx", "70")
-      .attr("cy", "70")
-      .attr("r", "20")
-      .attr("z-index", "10");
+    update_left_window();
 
     // Reset right window:
     RIGHT_WINDOW.selectAll("*").remove();
@@ -382,10 +424,11 @@ function (d3, utils, qt, viz) {
   }
 
   // Main setup
-  function do_viz(data_url) {
+  function do_viz() {
     LEFT_WINDOW = d3.select("#left_window");
     RIGHT_WINDOW = d3.select("#right_window");
-    CONTROLS = d3.select("#controls");
+    LEFT_CONTROLS = d3.select("#left_controls");
+    RIGHT_CONTROLS = d3.select("#right_controls");
 
     LEFT_X_SCALE = d3.scaleLinear().range(
       [0, utils.get_width(LEFT_WINDOW) - 2*MARGIN]
@@ -400,6 +443,7 @@ function (d3, utils, qt, viz) {
       [utils.get_height(RIGHT_WINDOW) - 2*MARGIN, 0]
     );
 
+    /* TODO: Something about this mess
     // Max 12 colors
     DISC_COLOR_SCALE = d3.scaleOrdinal(d3.schemePaired);
     //CONT_COLOR_SCALE = d3.interpolateViridis;
@@ -411,6 +455,13 @@ function (d3, utils, qt, viz) {
       return d3.interpolate(SCALE_LIGHT_END, SCALE_DARK_END)(t);
       //return d3.interpolate(SCALE_DARK_END, SCALE_LIGHT_END)(t);
     }
+    */
+    LEFT_COLOR_SCALE = function(t) {
+      return d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t);
+    };
+    RIGHT_COLOR_SCALE = function(t) {
+      return d3.interpolate(RIGHT_START_COLOR, RIGHT_END_COLOR)(t);
+    };
     COLOR_VALUE = function(d) {
       if (COLOR_BY != undefined && d.hasOwnProperty(COLOR_BY)) {
         return d[COLOR_BY];
@@ -419,6 +470,15 @@ function (d3, utils, qt, viz) {
       }
     };
 
+    // Placeholder text
+    LEFT_WINDOW.append("text")
+      .attr("class", "label")
+      .attr("x", utils.get_width(LEFT_WINDOW)/2)
+      .attr("y", utils.get_height(LEFT_WINDOW)/2)
+      .style("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .text("No data (choose a file to analyze below)");
+
     // bind events:
     d3.select(window)
       .on("resize", resize);
@@ -426,13 +486,21 @@ function (d3, utils, qt, viz) {
       .on("click", left_click)
       .on("mousemove", left_motion)
       .on("mousewheel", left_scroll);
-    CONTROLS
+
+    // controls:
     d3.select("#data_file")
       .on("change", file_chosen)
       .on(
         "click touchstart",
         function () { d3.select(this).attr("value", ""); }
       );
+
+    d3.select("#left_color_select")
+      .on("change", left_cattr_selected);
+    d3.select("#left_start_color")
+      .on("change", left_start_color_selected);
+    d3.select("#left_end_color")
+      .on("change", left_end_color_selected);
   }
 
   return {

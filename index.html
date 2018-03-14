@@ -11,11 +11,28 @@
   </head>
 <body>
   <div id="windows">
-  <svg id="left_window" class="window"></svg>
-  <svg id="right_window" class="window"></svg>
+    <svg id="left_window" class="window"></svg>
+    <svg id="right_window" class="window"></svg>
   </div>
   <div id="controls">
-    Data file: <input id="data_file" type="file" />
+    <div id="left_controls" class="control_panel">
+      <div class="controls_row">
+      Data file:
+        <input id="data_file" type="file" />
+      </div>
+      <div class="controls_row">
+      Color by:
+        <select id="left_color_select">
+          <option value="density" selected>Density (default)</option>
+        </select>
+        from
+        <input id="left_start_color" type="color" value="#c1c9f8">
+        to
+        <input id="left_end_color" type="color" value="#000834">
+      </div>
+    </div>
+    <div id="right_controls" class="control_panel">
+    </div>
   </div>
 </body>
 </html>
