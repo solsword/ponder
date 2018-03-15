@@ -1,4 +1,6 @@
-define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
+define(
+["d3/d3", "./utils", "./quadtree", "./properties"],
+function (d3, utils, qt, prp) {
   /*
    * Module variables:
    */
@@ -19,26 +21,6 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
   QT_POINT_RADIUS = 1.5;
 
   /*
-   * Helper functions
-   */
-
-  function format_number(n) {
-    if (Number.isInteger(n)) {
-      if (n < 100000) {
-        return n;
-      } else {
-        return n.toPrecision(4);
-      }
-    } else {
-      if (n < 10000) {
-        return n.toPrecision(4);
-      } else {
-        return n.toPrecision(3);
-      }
-    }
-  }
-
-  /*
    * Data transformation functions
    */
 
@@ -48,7 +30,8 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
   // a key appears.
   function value_sums(items, field, just_tally) {
     var counts = {};
-    for (var i = 0; i < items.length; ++i) { var it = items[i];
+    for (var i = 0; i < items.length; ++i) {
+      var it = items[i];
       var fv = it[field];
       if (fv != undefined) { // ignore missing fields
         if (Array.isArray(fv)) {
@@ -92,15 +75,24 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
   // Replaces the contents of the given SVG element with a visualization of the
   // given quadtree. The color_scale and min_resolution arguments are optional,
   // and will default to DEFAULT_COLOR_SCALE and DEFAULT_MIN_RESOLUTION if not
-  // supplied. points_allowed may also be left out, in which case each leaf of
-  // the quadtree will draw a single point, and so the quadtree's build-in
-  // resolution will be the only limit.
+  // supplied. The default mode draws a centroid circle for each quadtree leaf
+  // colored according to the number of points in that leaf. If as_rects is
+  // given as other than undefined, each quadtree node will instead be shaded
+  // according to its density. If color_by is defined, then color values will
+  // be the result of that function applied to each data point (or averaged
+  // over results for each point within a region). The combination of color_by
+  // and as_rects = true may be slow. Note that when color_by is not given and
+  // as_rects is off, the point size scales slightly with density to somewhat
+  // enhance perceptual accuracy of density among points, although of course
+  // there's still some distortion. This size scaling is disabled when color_by
+  // is given. Use as_rects for a less-biased view of density.
   function draw_quadtree(
     element,
     tree,
     color_scale,
     min_resolution,
-    points_allowed
+    as_rects,
+    color_by
   ) {
     if (color_scale == undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
@@ -110,73 +102,97 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
       min_resolution = DEFAULT_MIN_RESOLUTION;
     }
 
-    // clear out any old stuff:
-    element.selectAll("*").remove();
-
     var text = tree.extent;
     var tw = text[1][0] - text[0][0]
     var th = text[1][1] - text[0][1]
     var tarea = tw * th;
-    var low_density_threshold = points_allowed / tarea;
 
+    // All rectangles
     var rects = qt.density_areas(
       tree,
       min_resolution,
       1/(min_resolution * min_resolution * 4)
     );
-    for (var i = 0; i < rects.length; ++i) {
-      var r = rects[i];
 
-      var ext = r[0];
-      var den = r[1];
-      var cen = r[2];
-      var node = r[3];
-
-      var abs_den = den[0];
-      var rel_den = den[1];
-
-      var x = ext[0][0];
-      var y = ext[0][1];
-      var w = ext[1][0] - ext[0][0];
-      var h = ext[1][1] - ext[0][1];
-
-      // Draw individual points if the density is low enough and we're at a
-      // leaf node:
-      if (points_allowed == undefined) {
-        var c = color_scale(rel_den);
-        var x = cen[0];
-        var y = cen[1];
-        element.append("circle")
-          .attr("class", "point")
-          .attr("cx", x)
-          .attr("cy", y)
-          .attr("r", QT_POINT_RADIUS * (1 + rel_den))
-          .attr("fill", c);
+    if (as_rects) { // shade density over rectangles
+      if (color_by == undefined) {
+        function color_for(d) {
+          return color_scale(d.relative_density);
+        }
       } else {
-        var c = color_scale(rel_den);
-        element.append("rect")
-          .attr("class", "density_rectangle")
-          .attr("x", x)
-          .attr("y", y)
-          .attr("width", w)
-          .attr("height", h)
-          .attr("fill", c);
-        if (abs_den < low_density_threshold && node.hasOwnProperty("items")) {
-          var pc = color_scale(1.0);
-          var items = node.items;
-          for (var j = 0; j < items.length; ++j) {
-            var it = items[j];
-            var x = tree.getx(it);
-            var y = tree.gety(it);
-            element.append("circle")
-              .attr("class", "point")
-              .attr("cx", x)
-              .attr("cy", y)
-              .attr("r", QT_OUTLIER_RADIUS)
-              .attr("fill", pc);
-          }
+        var color_values_cache = qt.local_values(
+            tree,
+          function (item) { return [ color_by(item) ]; }
+        );
+
+        function color_for(d) {
+          return color_scale(color_values_cache["" + d.extent][0]);
         }
       }
+
+      // get rid of any old point data
+      element.selectAll("circle").remove();
+      // set up region data
+      element.selectAll("rect").exit().remove();
+      element.selectAll("rect")
+        .data(rects)
+      .enter().append("rect")
+        .attr("class", "region")
+        .attr("x", d => d.extent[0][0])
+        .attr("y", d => d.extent[0][1])
+        .attr(
+          "width",
+          function (d) {
+            var e = d.extent;
+            return e[1][0] - e[0][0];
+          }
+        )
+        .attr(
+          "height",
+          function (d) {
+            var e = d.extent;
+            return e[1][1] - e[0][1];
+          }
+        )
+        .attr("fill", color_for);
+
+    } else { // draw points (the default)
+      // get rid of any old region data
+      element.selectAll("rect").remove();
+
+      // figure out coloring
+      if (color_by == undefined) {
+        function color_for(d) {
+          return color_scale(d.relative_density);
+        }
+        function radius_of(d) {
+          return QT_POINT_RADIUS * (1 + d.relative_density)
+        }
+      } else {
+        function color_for(d) {
+          var items = d.node.items;
+          var c = 0;
+          for (var i = 0; i < items.length; ++i) {
+            c += coor_by(items[i]);
+          }
+          c /= items.length;
+          return color_scale(c);
+        }
+        var radius_of = QT_POINT_RADIUS;
+      }
+
+      // Just the leaves
+      var leaves = rects.filter(rect => rect.node.hasOwnProperty("items"));
+      console.log(leaves);
+      element.selectAll("circle").exit().remove();
+      element.selectAll("circle")
+        .data(leaves)
+      .enter().append("circle")
+        .attr("class", "point")
+        .attr("cx", d => d.centroid[0])
+        .attr("cy", d => d.centroid[1])
+        .attr("r", radius_of)
+        .attr("fill", color_for);
     }
   }
 
@@ -207,7 +223,7 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
         return counts[value] / normalize[value];
       }
       function bar_label(value) {
-        return NBSP + format_number(bar_value(value)) + "×" + normalize[value];
+        return NBSP + prp.format_number(bar_value(value)) +"×"+normalize[value];
       }
     } else {
       function bar_value(value) {
@@ -215,11 +231,11 @@ define(["d3/d3", "./utils", "./quadtree"], function (d3, utils, qt) {
       }
       if (normalize == 1) {
         function bar_label(value) {
-          return NBSP + format_number(bar_value(value));
+          return NBSP + prp.format_number(bar_value(value));
         }
       } else {
         function bar_label(value) {
-          return NBSP + format_number(bar_value(value)) + "×" + normalize;
+          return NBSP + prp.format_number(bar_value(value)) + "×" + normalize;
         }
       }
     }

@@ -34,11 +34,35 @@ define(["d3/d3"], function (d3) {
     return select.options[select.selectedIndex].value;
   }
 
+  function average_vectors(vector_list, weights) {
+    var result = [];
+    for (var j = 0; j < vector_list[0].length; ++j) {
+      var val = 0;
+      var denom = 0;
+      for (var i = 0; i < vector_list.length; ++i) {
+        if (weights == undefined) {
+          val += vector_list[i][j];
+          denom += 1;
+        } else {
+          val += vector_list[i][j] * weights[i];
+          denom += weights[i];
+        }
+      }
+      if (denom == 0) {
+        return undefined; // no items!
+      }
+      val /= denom;
+      result.push(val);
+    }
+    return result;
+  }
+
   return {
     "get_bbox": get_bbox,
     "get_width": get_width,
     "get_height": get_height,
     "get_n_attr": get_n_attr,
     "get_selected_value": get_selected_value,
+    "average_vectors": average_vectors,
   };
 });

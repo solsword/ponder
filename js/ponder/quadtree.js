@@ -407,6 +407,29 @@ define([], function () {
     );
   }
 
+  // Iterates over the given quadtree and returns an array of all items in the
+  // tree. Order is based on quad tree quadrant ordering & order of insertion
+  // within leaves.
+  function all_items(tree) {
+    return node_items(tree.root);
+  }
+
+  // Works like all_items, but accepts a single node rather than only an entire
+  // tree, and returns items within that node.
+  function node_items(node) {
+    var result = [];
+    visit_each_node(
+      node,
+      [[0, 0], [0, 0]], // extent doesn't matter
+      function (node) {
+        if (node.hasOwnProperty("items")) {
+          result = result.concat(node.items);
+        }
+      }
+    );
+    return result;
+  }
+
   // Calls the given function on each node in the given quadtree. Nodes have a
   // count, and have either a list of "items," or a list of "nodes." Node lists
   // always contain four items, in NW, NE, SW, SE order, but some of those may
@@ -423,15 +446,15 @@ define([], function () {
     visit_each_node(tree.root, tree.extent, fcn, post_order);
   }
 
-  // Returns a list of rectangles paired with density and relative (0--1)
-  // density values, along with centroids and references to the quadtree nodes
-  // they came from. Rectangles overlap, and larger (containing) rectangles
-  // come earlier in the list, so that they can be drawn in order. This method
-  // returns one rectangle for each node in the tree. The max_resolution
-  // argument is optional, but if given, no rectangles smaller than that in
-  // either dimension will be returned. The base_density is also optional, but
-  // if given, it establishes a default base density value, which will be used
-  // as the max density unless a denser region exists.
+  // Returns a list of area objects, which contain extent, density, relative
+  // density, centroid, and quadtree node information. Areas overlap, and
+  // larger (containing) areas come earlier in the list, so that they can be
+  // drawn in order. This method returns one area for each node in the tree.
+  // The max_resolution argument is optional, but if given, no rectangles
+  // smaller than that in either dimension will be returned. The base_density
+  // is also optional, but if given, it establishes a default base density
+  // value, which will be used as the max density unless a denser region
+  // exists.
   //
   // Results for a 1x1 region with points at:
   //   (0.6, 0.6),
@@ -440,32 +463,36 @@ define([], function () {
   // would look like:
   //
   // [
-  //   [
-  //     [[0, 0], [1, 1]],
-  //     [3, 0.09375],
-  //     [0.7333333333333334, 0.6333333333333333],
-  //     <node>
-  //   ],
+  //   {
+  //     "extent": [[0, 0], [1, 1]],
+  //     "density": 3,
+  //     "relative_density": 0.09375,
+  //     "centroid": [0.7333333333333334, 0.6333333333333333],
+  //     "node": <omitted from example>
+  //   },
   //
-  //   [
-  //     [[0.5, 0.5], [1, 1]],
-  //     [3, 0.375],
-  //     [0.7333333333333334, 0.6333333333333333],
-  //     <node>
-  //   ],
+  //   {
+  //     "extent": [[0.5, 0.5], [1, 1]],
+  //     "density": 3,
+  //     "relative_density": 0.375,
+  //     "centroid": [0.7333333333333334, 0.6333333333333333],
+  //     "node": <omitted from example>
+  //   },
   //
-  //   [
-  //     [[0.5, 0.5], [0.75, 0.75]],
-  //     [1, 0.5],
-  //     [0.6, 0.6],
-  //     <node>
-  //   ],
-  //   [
-  //     [[0.75, 0.5], [1, 0.75]],
-  //     [2, 1],
-  //     [0.8, 0.65],
-  //     <node>
-  //   ]
+  //   {
+  //     "extent": [[0.5, 0.5], [0.75, 0.75]],
+  //     "density": 1,
+  //     "relative_density": 0.5,
+  //     "centroid": [0.6, 0.6],
+  //     "node": <omitted from example>
+  //   },
+  //   {
+  //     "extent": [[0.75, 0.5], [1, 0.75]],
+  //     "density": 2,
+  //     "relative_density": 1,
+  //     "centroid": [0.8, 0.65],
+  //     "node": <omitted from example>
+  //   }
   // ]
   //
   function density_areas(tree, max_resolution, base_density) {
@@ -534,16 +561,71 @@ define([], function () {
         var density = node.count / (w * h);
         var rel_density = density / max_density;
         results.push(
-          [
-            extent,
-            [density, rel_density],
-            centroids["" + extent],
-            node
-          ]
+          {
+            "extent": extent,
+            "density": density,
+            "relative_density": rel_density,
+            "centroid": centroids["" + extent],
+            "node": node
+          }
         );
       }
     );
     return results;
+  }
+
+  // A generalization of density_areas, local_values can compute any custom set
+  // of values from individual items and then collect averages up the tree.
+  // It returns a mapping from stringified extents to value vectors, which for
+  // nodes with single items, is the result of calling the values_function on
+  // that item (that function must return an array). For nodes with multiple
+  // items, each value in the values list is averaged across items in that
+  // node.
+  function local_values(tree, values_function, max_resolution) {
+    return node_values(tree.root, tree.extent, values_function, max_resolution);
+  }
+
+  // Version of local_values that applies to an individual node instead of an
+  // entire tree. Requires an extent to create an accurate cache.
+  function node_values(node, extent, values_function, max_resolution) {
+    results = [];
+    var cache = {};
+    // Visit post-order so that cache slots will be filled.
+    visit_each_node(
+      node,
+      extent,
+      function (node, extent) {
+        var result;
+        var ret;
+        if (
+          w < max_resolution
+       || h < max_resolution
+       || node.hasOwnProperty("items")
+        ) { // a leaf node
+          var items = node_items(node);
+          var values_list = items.map(values_function);
+          result = utils.average_vectors(values_list);
+          // no need to recurse further (we already did in node_items):
+          ret = IGNORE_CHILDREN;
+        } else {
+          var sub_values = [];
+          var sub_weights = [];
+          for (var i = 0; i < node.children.length; ++i) {
+            var k = "" + sub_extent(extent, i);
+            if (cache.hasOwnProperty(k)) {
+              sub_values.push(cache[k]);
+              sub_weights.push(node.children[i].count);
+            } // otherwise must have been an empty child
+          }
+          result = utils.average_vectors(sub_values, sub_weights);
+          ret = null;
+        }
+        cache["" + extent] = result;
+        return ret;
+      },
+      true // post-order traversal
+    );
+    return cache;
   }
 
   return {
@@ -558,7 +640,11 @@ define([], function () {
     "add_item": add_item,
     "nearest": nearest,
     "in_region": in_region,
+    "all_items": all_items,
+    "node_items": node_items,
     "visit": visit,
     "density_areas": density_areas,
+    "local_values": local_values,
+    "node_values": node_values,
   };
 });

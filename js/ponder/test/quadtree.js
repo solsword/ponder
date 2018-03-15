@@ -557,60 +557,69 @@ define(["../unit", "../quadtree"], function (unit, qt) {
     unit.equals_test(
       das,
       [
-        [
-          [[0, 0], [10, 10]],
-          [8/100, (8/100)/md],
-          [3.825, 4.9625],
-          tt.root
-        ],
-        [
-          [[0, 0], [5, 5]],
-          [4/25, (4/25)/md],
-          [2.5, 2.55],
-          tt.root.children[0]
-        ],
-        [
-          [[0, 0], [2.5, 2.5]],
-          [1/6.25, (1/6.25)/md],
-          [1, 1],
-          tt.root.children[0].children[0]
-        ],
-        [
-          [[2.5, 2.5], [5, 5]],
-          [3/6.25, (3/6.25)/md],
-          [3, 3.0666666666666664],
-          tt.root.children[0].children[3]
-        ],
-        [
-          [[0, 5], [5, 10]],
-          [2/25, (2/25)/md],
-          [2.05, 6.5],
-          tt.root.children[2]
-        ],
-        [
-          [[0, 5], [2.5, 7.5]],
-          [1/6.25, (1/6.25)/md],
-          [1.1, 6],
-          tt.root.children[2].children[0]
-        ],
-        [
-          [[2.5, 5], [5, 7.5]],
-          [1/6.25, (1/6.25)/md],
-          [3, 7],
-          tt.root.children[2].children[1]
-        ],
-        [
-          [[5, 5], [10, 10]],
-          [2/25, (2/25)/md],
-          [8.25, 8.25],
-          tt.root.children[3]
-        ],
-        [
-          [[7.5, 7.5], [10, 10]],
-          [2/6.25, (2/6.25)/md],
-          [8.25, 8.25],
-          tt.root.children[3].children[3]
-        ],
+        {
+          "extent": [[0, 0], [10, 10]],
+          "density": 8/100,
+          "relative_density": (8/100)/md,
+          "centroid": [3.825, 4.9625],
+          "node": tt.root
+        },
+        {
+          "extent": [[0, 0], [5, 5]],
+          "density": 4/25,
+          "relative_density": (4/25)/md,
+          "centroid": [2.5, 2.55],
+          "node": tt.root.children[0]
+        },
+        {
+          "extent": [[0, 0], [2.5, 2.5]],
+          "density": 1/6.25,
+          "relative_density": (1/6.25)/md,
+          "centroid": [1, 1],
+          "node": tt.root.children[0].children[0]
+        },
+        {
+          "extent": [[2.5, 2.5], [5, 5]],
+          "density": 3/6.25,
+          "relative_density": (3/6.25)/md,
+          "centroid": [3, 3.0666666666666664],
+          "node": tt.root.children[0].children[3]
+        },
+        {
+          "extent": [[0, 5], [5, 10]],
+          "density": 2/25,
+          "relative_density": (2/25)/md,
+          "centroid": [2.05, 6.5],
+          "node": tt.root.children[2]
+        },
+        {
+          "extent": [[0, 5], [2.5, 7.5]],
+          "density": 1/6.25,
+          "relative_density": (1/6.25)/md,
+          "centroid": [1.1, 6],
+          "node": tt.root.children[2].children[0]
+        },
+        {
+          "extent": [[2.5, 5], [5, 7.5]],
+          "density": 1/6.25,
+          "relative_density": (1/6.25)/md,
+          "centroid": [3, 7],
+          "node": tt.root.children[2].children[1]
+        },
+        {
+          "extent": [[5, 5], [10, 10]],
+          "density": 2/25,
+          "relative_density": (2/25)/md,
+          "centroid": [8.25, 8.25],
+          "node": tt.root.children[3]
+        },
+        {
+          "extent": [[7.5, 7.5], [10, 10]],
+          "density": 2/6.25,
+          "relative_density": (2/6.25)/md,
+          "centroid": [8.25, 8.25],
+          "node": tt.root.children[3].children[3]
+        },
       ]
     ),
   ];

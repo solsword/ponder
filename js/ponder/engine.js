@@ -1,7 +1,6 @@
-
 define(
-["d3/d3", "./utils", "./quadtree", "./viz"],
-function (d3, utils, qt, viz) {
+["d3/d3", "./utils", "./quadtree", "./viz", "./properties"],
+function (d3, utils, qt, viz, prp) {
   /*
    * Module variables:
    */
@@ -193,13 +192,16 @@ function (d3, utils, qt, viz) {
       dplot,
       QUADTREE,
       function(t) {return d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t);},
-      VIZ_RESOLUTION
+      VIZ_RESOLUTION,
+      false,
+      undefined
     );
 
     // Add lenses last!
     dplot.append("g")
       .attr("id", "lens_group");
 
+    // TODO: Disentangle these!
     LENS = d3.select("#lens_group").append("circle")
       .attr("id", "lens")
       .attr("cx", lens_x)
@@ -332,6 +334,32 @@ function (d3, utils, qt, viz) {
     update_left_window();
   }
 
+  function left_x_selected() {
+    var val = this.value;
+    // TODO: HERE
+    X_PROP = val;
+    X_PROP_INDEX = 
+    x_value = function (d) {
+
+    };
+    update_left_window();
+  function x_value(d) {
+    if (X_PROP == undefined) {
+      return 0;
+    } else {
+      var val = d[X_PROP];
+    }
+    if (X_PROP_INDEX == undefined) {
+      return val;
+    } else {
+      return val[X_PROP_INDEX];
+    }
+  };
+  }
+
+  function left_y_selected() {
+  }
+
   /*
    * Setup functions
    */
@@ -421,6 +449,26 @@ function (d3, utils, qt, viz) {
 
     // Update the right window using the starting lens
     update_right_window();
+
+    update_controls(data);
+  }
+
+  // Updates things like selectable options based on data types.
+  function update_controls() {
+    // Analyze properties of the data
+    var properties = prp.assess_properties(data);
+
+    d3.select("#left_x_select").exit().remove();
+    d3.select("#left_x_select")
+      .data(properties)
+    .enter().append("option")
+      .attr("value", function (d) { d.name; });
+
+    d3.select("#left_y_select").exit().remove();
+    d3.select("#left_y_select")
+      .data(properties)
+    .enter().append("option")
+      .attr("value", function (d) { d.name; });
   }
 
   // Main setup
@@ -495,12 +543,12 @@ function (d3, utils, qt, viz) {
         function () { d3.select(this).attr("value", ""); }
       );
 
-    d3.select("#left_color_select")
-      .on("change", left_cattr_selected);
-    d3.select("#left_start_color")
-      .on("change", left_start_color_selected);
-    d3.select("#left_end_color")
-      .on("change", left_end_color_selected);
+    d3.select("#left_color_select").on("change", left_cattr_selected);
+    d3.select("#left_start_color").on("change", left_start_color_selected);
+    d3.select("#left_end_color").on("change", left_end_color_selected);
+
+    d3.select("#left_x_select").on("change", left_x_selected);
+    d3.select("#left_y_select").on("change", left_y_selected);
   }
 
   return {
