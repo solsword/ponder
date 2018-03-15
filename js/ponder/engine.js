@@ -5,15 +5,19 @@ function (d3, utils, qt, viz, prp) {
    * Module variables:
    */
 
+  // Milliseconds to wait during active polling.
+  var THUNK_MS = 75;
+
   // The data:
   var DXRANGE = [ undefined, undefined ];
   var DYRANGE = [ undefined, undefined ];
 
-  // Which properties to use for x- and y-axes:
-  var X_PROP = "coords";
-  var X_PROP_INDEX = 0;
-  var Y_PROP = "coords";
-  var Y_PROP_INDEX = 1;
+  // The current dataset
+  var DATA;
+
+  // Which attributes to use for x- and y-axes:
+  var X_INDEX = undefined;
+  var Y_INDEX = undefined;
 
   // Spatial resolution constraints (in screen pixels):
   var MIN_RADIUS = 0.5; // how small the lens can be
@@ -86,27 +90,17 @@ function (d3, utils, qt, viz, prp) {
    */
 
   function x_value(d) {
-    if (X_PROP == undefined) {
+    if (X_INDEX == undefined) {
       return 0;
     } else {
-      var val = d[X_PROP];
-    }
-    if (X_PROP_INDEX == undefined) {
-      return val;
-    } else {
-      return val[X_PROP_INDEX];
+      return prp.get_value(d, X_INDEX);
     }
   };
   function y_value(d) {
-    if (Y_PROP == undefined) {
+    if (Y_INDEX == undefined) {
       return 0;
     } else {
-      var val = d[Y_PROP];
-    }
-    if (Y_PROP_INDEX == undefined) {
-      return val;
-    } else {
-      return val[Y_PROP_INDEX];
+      return prp.get_value(d, Y_INDEX);
     }
   }
 
@@ -166,7 +160,24 @@ function (d3, utils, qt, viz, prp) {
     return get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
+  // Rebuilds the quadtree using the current DATA. X_INDEX and Y_INDEX globals
+  // control how X and Y values are derived.
+  function rebuild_quadtree() {
+    function getx(d) { return LEFT_X_SCALE(x_value(d)); };
+    function gety(d) { return LEFT_Y_SCALE(y_value(d)); };
+    QUADTREE = qt.build_quadtree(
+      DATA,
+      get_left_extent(),
+      getx,
+      gety,
+      MIN_REGION_SIDE
+    );
+  }
+
   function update_left_window() {
+
+    update_left_range();
+
     if (LENS != undefined) {
       var lens_x = utils.get_n_attr(LENS, "cx");
       var lens_y = utils.get_n_attr(LENS, "cy");
@@ -188,12 +199,14 @@ function (d3, utils, qt, viz, prp) {
 
     // Draw the quadtree:
     var dplot = d3.select("#qt_density");
+    dplot.selectAll("*").remove();
     viz.draw_quadtree(
       dplot,
       QUADTREE,
-      function(t) {return d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t);},
+      t => d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t),
       VIZ_RESOLUTION,
       false,
+      LEFT_COLOR_SCALE,
       undefined
     );
 
@@ -336,28 +349,16 @@ function (d3, utils, qt, viz, prp) {
 
   function left_x_selected() {
     var val = this.value;
-    // TODO: HERE
-    X_PROP = val;
-    X_PROP_INDEX = 
-    x_value = function (d) {
-
-    };
+    X_INDEX = prp.string__index(val);
+    rebuild_quadtree();
     update_left_window();
-  function x_value(d) {
-    if (X_PROP == undefined) {
-      return 0;
-    } else {
-      var val = d[X_PROP];
-    }
-    if (X_PROP_INDEX == undefined) {
-      return val;
-    } else {
-      return val[X_PROP_INDEX];
-    }
-  };
   }
 
   function left_y_selected() {
+    var val = this.value;
+    Y_INDEX = prp.string__index(val);
+    rebuild_quadtree();
+    update_left_window();
   }
 
   /*
@@ -368,20 +369,21 @@ function (d3, utils, qt, viz, prp) {
   function populate_data(data) {
     resize();
 
-    DXRANGE[0] = d3.min(data, x_value);
-    DXRANGE[1] = d3.max(data, x_value);
-    DYRANGE[0] = d3.min(data, y_value);
-    DYRANGE[1] = d3.max(data, y_value);
-    var xr = DXRANGE[1] - DXRANGE[0];
-    var yr = DYRANGE[1] - DYRANGE[0];
-    LEFT_X_SCALE.domain([DXRANGE[0] - DPAD * xr, DXRANGE[1] + DPAD * xr]);
-    LEFT_Y_SCALE.domain([DYRANGE[0] - DPAD * yr, DYRANGE[1] + DPAD * yr]);
+    // Set global
+    DATA = data;
+
+    // Update controls
+    update_controls(data);
+
+    // Rebuild the quadtree
+    rebuild_quadtree();
 
     // Reset left window:
     LEFT_WINDOW.selectAll("*").remove();
 
     // x-axis:
     LEFT_WINDOW.append("g")
+      .attr("id", "left_x_axis")
       .attr("class", "x axis")
       .attr(
         "transform",
@@ -398,6 +400,7 @@ function (d3, utils, qt, viz, prp) {
 
     // y-axis
     LEFT_WINDOW.append("g")
+      .attr("id", "left_y_axis")
       .attr("class", "y axis")
       .attr(
         "transform",
@@ -412,17 +415,6 @@ function (d3, utils, qt, viz, prp) {
       .style("text-anchor", "end")
       .text("Y");
 
-    // Build a quadtree:
-    function getx(d) { return LEFT_X_SCALE(x_value(d)); };
-    function gety(d) { return LEFT_Y_SCALE(y_value(d)); };
-    QUADTREE = qt.build_quadtree(
-      data,
-      get_left_extent(),
-      getx,
-      gety,
-      MIN_REGION_SIDE
-    );
-
     LEFT_WINDOW.append("g")
       .attr("id", "qt_density")
       .attr("class", "density_plot")
@@ -431,6 +423,7 @@ function (d3, utils, qt, viz, prp) {
         "translate(" + MARGIN + "," + MARGIN + ")"
       );
 
+    // Heavy lifting for left window
     update_left_window();
 
     // Reset right window:
@@ -449,26 +442,62 @@ function (d3, utils, qt, viz, prp) {
 
     // Update the right window using the starting lens
     update_right_window();
-
-    update_controls(data);
   }
 
-  // Updates things like selectable options based on data types.
+  // Updates the ranges of the left-hand plot
+  function update_left_range() {
+    DXRANGE[0] = d3.min(DATA, x_value);
+    DXRANGE[1] = d3.max(DATA, x_value);
+    DYRANGE[0] = d3.min(DATA, y_value);
+    DYRANGE[1] = d3.max(DATA, y_value);
+    var xr = DXRANGE[1] - DXRANGE[0];
+    var yr = DYRANGE[1] - DYRANGE[0];
+    LEFT_X_SCALE.domain([DXRANGE[0] - DPAD * xr, DXRANGE[1] + DPAD * xr]);
+    LEFT_Y_SCALE.domain([DYRANGE[0] - DPAD * yr, DYRANGE[1] + DPAD * yr]);
+
+    d3.select("#left_x_axis")
+      .call(d3.axisBottom(LEFT_X_SCALE));
+
+    d3.select("#left_y_axis")
+      .call(d3.axisLeft(LEFT_Y_SCALE));
+  }
+
+  // Updates things like selectable options based on data types. Uses the
+  // global DATA value.
   function update_controls() {
     // Analyze properties of the data
-    var properties = prp.assess_properties(data);
+    var properties = prp.assess_properties(DATA);
 
-    d3.select("#left_x_select").exit().remove();
-    d3.select("#left_x_select")
-      .data(properties)
-    .enter().append("option")
-      .attr("value", function (d) { d.name; });
+    var indices = prp.all_indices(properties);
 
-    d3.select("#left_y_select").exit().remove();
-    d3.select("#left_y_select")
-      .data(properties)
+    var attributes = [];
+    for (var i = 0; i < indices.length; ++i) {
+      var ind = indices[i];
+      attributes.push([prp.index__string(ind), ind]);
+    }
+
+    X_INDEX = attributes[0][1];
+    Y_INDEX = attributes[1][1];
+
+    update_left_range();
+
+    var lxs = d3.select("#left_x_select");
+    lxs.selectAll("option").exit().remove();
+    lxs.selectAll("option")
+      .data(attributes)
     .enter().append("option")
-      .attr("value", function (d) { d.name; });
+      .attr("value", d => d[0])
+      .text(d => d[0]);
+    lxs.selectAll("option").filter((d, i) => i == 0).attr("selected", true);
+
+    var lys = d3.select("#left_y_select");
+    lys.selectAll("option").exit().remove();
+    lys.selectAll("option")
+      .data(attributes)
+    .enter().append("option")
+      .attr("value", d => d[0])
+      .text(d => d[0]);
+    lys.selectAll("option").filter((d, i) => i == 1).attr("selected", true);
   }
 
   // Main setup

@@ -1,9 +1,5 @@
 define(["../unit", "../quadtree"], function (unit, qt) {
   /*
-   * Module variables:
-   */
-
-  /*
    * Test functions
    */
 

@@ -173,7 +173,7 @@ function (d3, utils, qt, prp) {
           var items = d.node.items;
           var c = 0;
           for (var i = 0; i < items.length; ++i) {
-            c += coor_by(items[i]);
+            c += color_by(items[i]);
           }
           c /= items.length;
           return color_scale(c);
@@ -183,7 +183,6 @@ function (d3, utils, qt, prp) {
 
       // Just the leaves
       var leaves = rects.filter(rect => rect.node.hasOwnProperty("items"));
-      console.log(leaves);
       element.selectAll("circle").exit().remove();
       element.selectAll("circle")
         .data(leaves)

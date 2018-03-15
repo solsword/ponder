@@ -73,41 +73,119 @@ define(["d3/d3", "./utils"], function (d3, utils) {
    * Core functions
    */
 
-  // Returns an array of possible indexing schemes for the given property. The
-  // first element of each is just the key for that property, while the second
-  // is an array, possibly empty, of index values to be used sequentially.
-  function property_indexables(prp) {
-    var t = prp.type;
-    if (Array.isArray(t)) {
+  // Uses an index (of the kind returned by property_indices) to retrieve a
+  // value from an item.
+  function get_value(item, index) {
+    var val = item;
+    for (var i = 0; i < index.length; ++i) {
+      val = val[index[i]];
+    }
+    return val;
+  }
+
+  // Converts an index into a human-readable string.
+  function index__string(index) {
+    var result = "";
+    for (var i = 0; i < index.length; ++i) {
+      var idx = index[i];
+      if (typeof idx === "string") {
+        result += "." + idx;
+      } else { // number
+        result += ":" + idx;
+      }
+    }
+    return result;
+  }
+
+  // Converts a property index string back into an index.
+  function string__index(index_str) {
+    var state = undefined;
+    var sub = "";
+    var result = [];
+    for (var i = 0; i < index_str.length; ++i) {
+      chr = index_str[i];
+      if (state === undefined) {
+        if (chr == ":") {
+          state = "number";
+        } else { // anything else (should be ".")
+          state = "string";
+        }
+      } else if (state === "string") {
+        if (chr == ":") {
+          result.push(sub);
+          sub = "";
+          state = "number";
+        } else if (chr == ".") {
+          result.push(sub);
+          sub = "";
+          state = "string";
+        } else {
+          sub += chr;
+        }
+      } else if (state === "number") {
+        if (chr == ":") {
+          result.push(Number.parseInt(sub));
+          sub = "";
+          state = "number";
+        } else if (chr == ".") {
+          result.push(Number.parseInt(sub));
+          sub = "";
+          state = "string";
+        } else {
+          sub += chr;
+        }
+      }
+    }
+    if (state == "number") {
+      result.push(Number.parseInt(sub));
+    } else {
+      result.push(sub);
+    }
+
+    return result;
+  }
+
+  // Returns an array of all possible indexes for the given type. Each index is
+  // a tuple of keys to be applied to a data item to get a value out. The given
+  // name is used as the initial index in this array.
+  function property_indices(name, type) {
+    if (Array.isArray(type)) {
       var options = [];
-      if (t[0] == "map") {
-        var tkeys = t[1];
-        // TODO: Tensors inside maps?!?
+      if (type[0] == "map") { // a map
+        var tkeys = type[1];
         for (var k in tkeys) {
           if (tkeys.hasOwnProperty(k)) {
-            options.push([ prp.name, k ]);
+            var sub_indices = property_indices(k, tkeys[k]);
+            options.push([ name ].concat(sub_indices));
           }
         }
-      } else { // a tensor; enumerate all possible indexings
-        var tdim = t[1].reduce((accum, val) => accum * val, 1);
-        function darray(tidx) {
-          var result = [];
-          for (var i = 0; i < t[1].length; ++i) {
-            var dm = t[1][i];
-            result.push(tidx % dm);
-            tidx = Math.floor(tidx / dm);
-          }
-          return result;
+      } else { // a tensor:
+        if (type[1].length > 1) {
+          var sub_indices = property_indices(
+            "ignored",
+            [type[0], type[1].slice(1), type[2]]
+          );
+        } else {
+          var sub_indices = property_indices("ignored", type[2]);
         }
-        for (var tidx = 0; tidx < tdim; ++tidx) {
-          var ia = darray(tidx);
-          options.push([ prp.name, ia ]);
+        for (var i = 0; i < type[1][0]; ++i) {
+          options.push([name, i].concat(sub_indices.slice(1)));
         }
       }
       return options;
     } else {
-      return [ prp.name, [] ];
+      return [ [ name ] ];
     }
+  }
+
+  // Returns an array of all indices of a list of properties.
+  function all_indices(properties) {
+    var result = [];
+    for (var i = 0; i < properties.length; ++i) {
+      var prp = properties[i];
+      result = result.concat(property_indices(prp.name, prp.type));
+    }
+    return result;
   }
 
   // Looks at the data (mostly just the first item) and returns a list of
@@ -124,6 +202,7 @@ define(["d3/d3", "./utils"], function (d3, utils) {
   function assess_properties(data) {
     var first = data[0];
     var results = [];
+    // TODO: Worry about attribute ordering here?
     for (var k in first) {
       if (first.hasOwnProperty(k)) {
         var prp = {};
@@ -133,11 +212,16 @@ define(["d3/d3", "./utils"], function (d3, utils) {
         results.push(prp);
       }
     }
+    return results;
   }
 
   return {
     "format_number": format_number,
-    "property_indexables": property_indexables,
+    "get_value": get_value,
+    "index__string": index__string,
+    "string__index": string__index,
+    "property_indices": property_indices,
+    "all_indices": all_indices,
     "assess_properties": assess_properties,
   };
 });
