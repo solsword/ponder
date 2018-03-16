@@ -1,6 +1,13 @@
 define(
-["d3/d3", "./utils", "./quadtree", "./viz", "./properties"],
-function (d3, utils, qt, viz, prp) {
+[
+  "d3",
+  "d3-scale-chromatic",
+  "./utils",
+  "./quadtree",
+  "./viz",
+  "./properties"
+],
+function (d3, d3sc, utils, qt, viz, prp) {
   /*
    * Module variables:
    */
@@ -14,6 +21,9 @@ function (d3, utils, qt, viz, prp) {
 
   // The current dataset
   var DATA;
+
+  // Whether to use density rectangles or point approximations
+  var SHOW_DENSITY = false;
 
   // Which attributes to use for x- and y-axes:
   var X_INDEX = undefined;
@@ -45,6 +55,10 @@ function (d3, utils, qt, viz, prp) {
   // The quadtree:
   var QUADTREE;
 
+  // Selections
+  var HOVERED;
+  var SELECTED;
+
   // Scales
   var LEFT_X_SCALE;
   var LEFT_Y_SCALE;
@@ -53,27 +67,12 @@ function (d3, utils, qt, viz, prp) {
 
   // Color transforms
   var LEFT_COLOR_SCALE;
-  var LEFT_START_COLOR = d3.rgb(193, 201, 248);
-  var LEFT_END_COLOR = d3.rgb(0, 8, 52);
+  var LEFT_START_COLOR = d3.select("#left_start_color").attr("value");
+  var LEFT_END_COLOR = d3.select("#left_end_color").attr("value");
   var RIGHT_COLOR_SCALE;
   var RIGHT_START_COLOR = d3.rgb(193, 201, 248);
   var RIGHT_END_COLOR = d3.rgb(0, 8, 52);
   var COLOR_VALUE;
-
-  // Color constants:
-  // TODO: Pick a scheme, or let the user decide!
-  // cream/blue
-  //var SCALE_LIGHT_END = d3.rgb(255, 245, 230);
-  //var SCALE_DARK_END = d3.rgb(0, 40, 190);
-  // cream/maroon
-  //var SCALE_LIGHT_END = d3.rgb(255, 245, 230);
-  //var SCALE_DARK_END = d3.rgb(64, 7, 0);
-  // sky/dark blue
-  //var SCALE_LIGHT_END = d3.rgb(242, 249, 255);
-  //var SCALE_DARK_END = d3.rgb(0, 8, 52);
-  // light/dark blue
-  //var SCALE_LIGHT_END = d3.rgb(193, 201, 248);
-  //var SCALE_DARK_END = d3.rgb(0, 8, 52);
 
   // DOM objects
   var LEFT_WINDOW;
@@ -90,17 +89,19 @@ function (d3, utils, qt, viz, prp) {
    */
 
   function x_value(d) {
-    if (X_INDEX == undefined) {
+    var val = prp.get_value(d, X_INDEX);
+    if (val == undefined) {
       return 0;
     } else {
-      return prp.get_value(d, X_INDEX);
+      return val;
     }
   };
   function y_value(d) {
-    if (Y_INDEX == undefined) {
+    var val = prp.get_value(d, Y_INDEX);
+    if (val == undefined) {
       return 0;
     } else {
-      return prp.get_value(d, Y_INDEX);
+      return val;
     }
   }
 
@@ -129,14 +130,14 @@ function (d3, utils, qt, viz, prp) {
   function get_items_in_circle(tree, cx, cy, r) {
     var region = [[cx - r, cy - r], [cx + r, cy + r]]
     var candidates = qt.in_region(
-      QUADTREE,
+      tree,
       region
     );
     var selected = [];
     for (var i = 0; i < candidates.length; ++i) {
       var it = candidates[i];
-      var x = QUADTREE.getx(it);
-      var y = QUADTREE.gety(it);
+      var x = tree.getx(it);
+      var y = tree.gety(it);
       var dx = x - cx;
       var dy = y - cy;
       if (Math.sqrt(dx * dx + dy * dy) <= r) {
@@ -146,18 +147,22 @@ function (d3, utils, qt, viz, prp) {
     return selected;
   }
 
-  function get_hovered() {
+  function update_hovered() {
     var cx = utils.get_n_attr(SHADOW, "cx");
     var cy = utils.get_n_attr(SHADOW, "cy");
     var r = utils.get_n_attr(SHADOW, "r");
-    return get_items_in_circle(QUADTREE, cx, cy, r);
+    HOVERED = get_items_in_circle(QUADTREE, cx, cy, r);
   }
 
-  function get_selected() {
-    var cx = utils.get_n_attr(LENS, "cx");
-    var cy = utils.get_n_attr(LENS, "cy");
-    var r = utils.get_n_attr(LENS, "r");
-    return get_items_in_circle(QUADTREE, cx, cy, r);
+  function update_selected() {
+    if (LENS == undefined) {
+      SELECTED = [];
+    } else {
+      var cx = utils.get_n_attr(LENS, "cx");
+      var cy = utils.get_n_attr(LENS, "cy");
+      var r = utils.get_n_attr(LENS, "r");
+      SELECTED = get_items_in_circle(QUADTREE, cx, cy, r);
+    }
   }
 
   // Rebuilds the quadtree using the current DATA. X_INDEX and Y_INDEX globals
@@ -203,11 +208,28 @@ function (d3, utils, qt, viz, prp) {
     viz.draw_quadtree(
       dplot,
       QUADTREE,
-      t => d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t),
-      VIZ_RESOLUTION,
-      false,
       LEFT_COLOR_SCALE,
+      VIZ_RESOLUTION,
+      SHOW_DENSITY,
       undefined
+      /* DEBUG
+      function (d) {
+        var cx = lens_x;
+        var cy = lens_y;
+        var r = lens_r;
+        var x = QUADTREE.getx(d);
+        var y = QUADTREE.gety(d);
+        if (
+          x >= cx - r && x <= cx + r
+       && y >= cy - r && y <= cy + r
+       && r*r >= (x - cx) * (x - cx) + (y - cy) * (y - cy)
+        ) {
+          return 1;
+        } else {
+          return 0;
+        }
+      }
+      // */
     );
 
     // Add lenses last!
@@ -232,7 +254,10 @@ function (d3, utils, qt, viz, prp) {
 
   function update_right_window() {
     // Collect items:
-    var items = get_selected();
+    var items = SELECTED;
+
+    RIGHT_CONTROLS.selectAll("#sel_count")
+      .text(SELECTED.length + " items selected");
 
     // TODO: Give user control over which info & how?
     // Extract & transform data:
@@ -282,12 +307,17 @@ function (d3, utils, qt, viz, prp) {
       LENS.attr("cy", SHADOW.attr("cy"));
       LENS.attr("r", SHADOW.attr("r"));
 
+      // Update selection & right window
+      update_selected();
       update_right_window();
+      // TODO: Not this! (DEBUG)
+      update_left_window();
     }
   }
 
   function left_scroll() {
     var e = d3.event;
+    e.preventDefault();
 
     var unit = e.deltaMode;
     var dx = e.deltaX;
@@ -332,6 +362,11 @@ function (d3, utils, qt, viz, prp) {
     }
   }
 
+  function density_box_checked() {
+    SHOW_DENSITY = !this.checked;
+    update_left_window();
+  }
+
   function left_cattr_selected() {
     var val = utils.get_selected_value(this);
     // TODO: HERE
@@ -350,14 +385,20 @@ function (d3, utils, qt, viz, prp) {
   function left_x_selected() {
     var val = this.value;
     X_INDEX = prp.string__index(val);
+    update_left_range();
+
     rebuild_quadtree();
+
     update_left_window();
   }
 
   function left_y_selected() {
     var val = this.value;
     Y_INDEX = prp.string__index(val);
+    update_left_range();
+
     rebuild_quadtree();
+
     update_left_window();
   }
 
@@ -377,6 +418,9 @@ function (d3, utils, qt, viz, prp) {
 
     // Rebuild the quadtree
     rebuild_quadtree();
+
+    // Update the selection
+    update_selected();
 
     // Reset left window:
     LEFT_WINDOW.selectAll("*").remove();
@@ -540,11 +584,7 @@ function (d3, utils, qt, viz, prp) {
       return d3.interpolate(RIGHT_START_COLOR, RIGHT_END_COLOR)(t);
     };
     COLOR_VALUE = function(d) {
-      if (COLOR_BY != undefined && d.hasOwnProperty(COLOR_BY)) {
-        return d[COLOR_BY];
-      } else {
-        return undefined;
-      }
+      return prp.get_value(d, COLOR_BY);
     };
 
     // Placeholder text
@@ -571,6 +611,8 @@ function (d3, utils, qt, viz, prp) {
         "click touchstart",
         function () { d3.select(this).attr("value", ""); }
       );
+
+    d3.select("#show_density_checkbox").on("change", density_box_checked);
 
     d3.select("#left_color_select").on("change", left_cattr_selected);
     d3.select("#left_start_color").on("change", left_start_color_selected);

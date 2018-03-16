@@ -1,5 +1,5 @@
 define(
-["d3/d3", "./utils", "./quadtree", "./properties"],
+["d3", "./utils", "./quadtree", "./properties"],
 function (d3, utils, qt, prp) {
   /*
    * Module variables:
@@ -182,7 +182,8 @@ function (d3, utils, qt, prp) {
       }
 
       // Just the leaves
-      var leaves = rects.filter(rect => rect.node.hasOwnProperty("items"));
+      var leaves = rects.filter(rect => rect.is_leaf);
+      //*
       element.selectAll("circle").exit().remove();
       element.selectAll("circle")
         .data(leaves)
@@ -192,6 +193,30 @@ function (d3, utils, qt, prp) {
         .attr("cy", d => d.centroid[1])
         .attr("r", radius_of)
         .attr("fill", color_for);
+      /*/  // DEBUG
+      element.selectAll("rect").exit().remove();
+      element.selectAll("rect")
+        .data(leaves)
+      .enter().append("rect")
+        .attr("class", "region")
+        .attr("x", d => d.extent[0][0])
+        .attr("y", d => d.extent[0][1])
+        .attr(
+          "width",
+          function (d) {
+            var e = d.extent;
+            return e[1][0] - e[0][0];
+          }
+        )
+        .attr(
+          "height",
+          function (d) {
+            var e = d.extent;
+            return e[1][1] - e[0][1];
+          }
+        )
+        .attr("fill", color_for);
+       // */
     }
   }
 

@@ -1,4 +1,4 @@
-define([], function () {
+define(["./utils"], function (utils) {
   /*
    * Module variables:
    */
@@ -447,7 +447,7 @@ define([], function () {
   }
 
   // Returns a list of area objects, which contain extent, density, relative
-  // density, centroid, and quadtree node information. Areas overlap, and
+  // density, centroid, leaf, and quadtree node information. Areas overlap, and
   // larger (containing) areas come earlier in the list, so that they can be
   // drawn in order. This method returns one area for each node in the tree.
   // The max_resolution argument is optional, but if given, no rectangles
@@ -468,6 +468,7 @@ define([], function () {
   //     "density": 3,
   //     "relative_density": 0.09375,
   //     "centroid": [0.7333333333333334, 0.6333333333333333],
+  //     "is_leaf": false,
   //     "node": <omitted from example>
   //   },
   //
@@ -476,6 +477,7 @@ define([], function () {
   //     "density": 3,
   //     "relative_density": 0.375,
   //     "centroid": [0.7333333333333334, 0.6333333333333333],
+  //     "is_leaf": false,
   //     "node": <omitted from example>
   //   },
   //
@@ -484,6 +486,7 @@ define([], function () {
   //     "density": 1,
   //     "relative_density": 0.5,
   //     "centroid": [0.6, 0.6],
+  //     "is_leaf": true,
   //     "node": <omitted from example>
   //   },
   //   {
@@ -491,6 +494,7 @@ define([], function () {
   //     "density": 2,
   //     "relative_density": 1,
   //     "centroid": [0.8, 0.65],
+  //     "is_leaf": true,
   //     "node": <omitted from example>
   //   }
   // ]
@@ -498,6 +502,7 @@ define([], function () {
   function density_areas(tree, max_resolution, base_density) {
     results = [];
     var max_density = base_density;
+    var min_density = undefined;
     var centroids = {};
     // First visit: post-order to determine max density and compute centroids
     visit(
@@ -517,6 +522,9 @@ define([], function () {
           var density = node.count / (w * h);
           if (max_density == undefined || density > max_density) {
             max_density = density;
+          }
+          if (min_density == undefined || density < min_density) {
+            min_density = density;
           }
         } // otherwise skip density calculation
 
@@ -555,17 +563,23 @@ define([], function () {
       function (node, extent) {
         var w = extent[1][0] - extent[0][0];
         var h = extent[1][1] - extent[0][1];
+        var is_leaf = (
+          w < 2*max_resolution
+       || h < 2*max_resolution
+       || node.hasOwnProperty("items")
+        );
         if (w < max_resolution || h < max_resolution) { // undefined works
           return IGNORE_CHILDREN; // doesn't count
         }
         var density = node.count / (w * h);
-        var rel_density = density / max_density;
+        var rel_density = (density - min_density) / (max_density - min_density);
         results.push(
           {
             "extent": extent,
             "density": density,
             "relative_density": rel_density,
             "centroid": centroids["" + extent],
+            "is_leaf": is_leaf,
             "node": node
           }
         );
@@ -597,6 +611,8 @@ define([], function () {
       function (node, extent) {
         var result;
         var ret;
+        var w = extent[1][0] - extent[0][0];
+        var h = extent[1][1] - extent[0][1];
         if (
           w < max_resolution
        || h < max_resolution

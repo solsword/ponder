@@ -547,7 +547,9 @@ define(["../unit", "../quadtree"], function (unit, qt) {
   ];
 
   var das = qt.density_areas(tt, 2.5); //density areas
-  var md = 3/(2.5*2.5); // max local density
+  var mxd = 3/(2.5*2.5); // max local density
+  var mnd = 8/100;
+  var rdd = mxd - mnd;
 
   var density_areas_tests = [
     unit.equals_test(
@@ -556,64 +558,73 @@ define(["../unit", "../quadtree"], function (unit, qt) {
         {
           "extent": [[0, 0], [10, 10]],
           "density": 8/100,
-          "relative_density": (8/100)/md,
+          "relative_density": (8/100 - mnd)/rdd,
           "centroid": [3.825, 4.9625],
+          "is_leaf": false,
           "node": tt.root
         },
         {
           "extent": [[0, 0], [5, 5]],
           "density": 4/25,
-          "relative_density": (4/25)/md,
+          "relative_density": (4/25 - mnd)/rdd,
           "centroid": [2.5, 2.55],
+          "is_leaf": false,
           "node": tt.root.children[0]
         },
         {
           "extent": [[0, 0], [2.5, 2.5]],
           "density": 1/6.25,
-          "relative_density": (1/6.25)/md,
+          "relative_density": (1/6.25 - mnd)/rdd,
           "centroid": [1, 1],
+          "is_leaf": true,
           "node": tt.root.children[0].children[0]
         },
         {
           "extent": [[2.5, 2.5], [5, 5]],
           "density": 3/6.25,
-          "relative_density": (3/6.25)/md,
+          "relative_density": (3/6.25 - mnd)/rdd,
           "centroid": [3, 3.0666666666666664],
+          "is_leaf": true,
           "node": tt.root.children[0].children[3]
         },
         {
           "extent": [[0, 5], [5, 10]],
           "density": 2/25,
-          "relative_density": (2/25)/md,
+          "relative_density": (2/25 - mnd)/rdd,
           "centroid": [2.05, 6.5],
+          "is_leaf": false,
           "node": tt.root.children[2]
         },
         {
           "extent": [[0, 5], [2.5, 7.5]],
           "density": 1/6.25,
-          "relative_density": (1/6.25)/md,
+          "relative_density": (1/6.25 - mnd)/rdd,
           "centroid": [1.1, 6],
+          "is_leaf": true,
           "node": tt.root.children[2].children[0]
         },
         {
           "extent": [[2.5, 5], [5, 7.5]],
           "density": 1/6.25,
-          "relative_density": (1/6.25)/md,
+          "relative_density": (1/6.25 - mnd)/rdd,
           "centroid": [3, 7],
+          "is_leaf": true,
           "node": tt.root.children[2].children[1]
         },
         {
           "extent": [[5, 5], [10, 10]],
           "density": 2/25,
-          "relative_density": (2/25)/md,
+          "relative_density": (2/25 - mnd)/rdd,
           "centroid": [8.25, 8.25],
+          "is_leaf": false,
           "node": tt.root.children[3]
         },
         {
           "extent": [[7.5, 7.5], [10, 10]],
           "density": 2/6.25,
-          "relative_density": (2/6.25)/md,
+          "relative_density": (2/6.25 - mnd)/rdd,
           "centroid": [8.25, 8.25],
+          "is_leaf": true,
           "node": tt.root.children[3].children[3]
         },
       ]

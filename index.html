@@ -21,14 +21,27 @@
         <input id="data_file" type="file" />
       </div>
       <div class="controls_row">
+        <input id="show_density_checkbox" type="checkbox" checked>
+        Show point approximation (instead of density)
+      </div>
+      <div class="controls_row">
       Color by:
         <select id="left_color_select">
           <option value="density" selected>Density (default)</option>
         </select>
         from
-        <input id="left_start_color" type="color" value="#c1c9f8">
+        <input id="left_start_color" type="color" value="#f0e8c8" >
+        <!--"#c1c9f8"-->
         to
-        <input id="left_end_color" type="color" value="#000834">
+        <input id="left_end_color" type="color" value="#631200">
+        <!--"#000834"-->
+        (or gradient:
+        <select id="left_gradient_select">
+          <option class="gradient_option" value="inferno">Inferno</option>
+          <option class="gradient_option" value="magma">Magma</option>
+          <option class="gradient_option" value="viridis">Viridis</option>
+        </select>
+        )
       </div>
       <div class="controls_row">
         X-axis: <select id="left_x_select"></select>
@@ -38,6 +51,9 @@
       </div>
     </div>
     <div id="right_controls" class="control_panel">
+      <div class="controls_row">
+        <span id="sel_count">0 items selected</span>
+      </div>
     </div>
   </div>
 </body>

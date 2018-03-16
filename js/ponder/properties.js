@@ -1,4 +1,4 @@
-define(["d3/d3", "./utils"], function (d3, utils) {
+define(["d3", "./utils"], function (d3, utils) {
   /*
    * Module variables
    */
@@ -76,9 +76,16 @@ define(["d3/d3", "./utils"], function (d3, utils) {
   // Uses an index (of the kind returned by property_indices) to retrieve a
   // value from an item.
   function get_value(item, index) {
+    if (index == undefined) {
+      return undefined;
+    }
     var val = item;
     for (var i = 0; i < index.length; ++i) {
-      val = val[index[i]];
+      try {
+        val = val[index[i]];
+      } catch (error) {
+        return undefined;
+      }
     }
     return val;
   }
