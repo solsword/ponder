@@ -1,4 +1,4 @@
-define(["../unit", "../quadtree"], function (unit, qt) {
+define(["../utils", "../unit", "../quadtree"], function (utils, unit, qt) {
   /*
    * Test functions
    */
@@ -182,7 +182,7 @@ define(["../unit", "../quadtree"], function (unit, qt) {
 
   build_quadtree_tests = [
     unit.equals_test(
-      unit.deep_copy(test_tree),
+      utils.deep_copy(test_tree),
       {
         "extent": [[0, 0], [10, 10]],
         "getx": getx,
@@ -232,7 +232,7 @@ define(["../unit", "../quadtree"], function (unit, qt) {
 
   var add_item_tests = [
     unit.equals_test(
-      unit.deep_copy(test_tree),
+      utils.deep_copy(test_tree),
       {
         "extent": [[0, 0], [10, 10]],
         "getx": getx,
@@ -306,7 +306,7 @@ define(["../unit", "../quadtree"], function (unit, qt) {
     ),
   ];
 
-  var tt = unit.deep_copy(test_tree);
+  var tt = utils.deep_copy(test_tree);
   var nearest_tests = [
     unit.equals_test( // 0
       qt.nearest(tt, 1, 1, 0.5),

@@ -27,21 +27,24 @@
       <div class="controls_row">
       Color by:
         <select id="left_color_select">
-          <option value="density" selected>Density (default)</option>
+          <option value="density" selected>density (default)</option>
         </select>
-        from
+        using
+        <select id="left_gradient_select">
+          <option class="gradient_option" value="custom" selected>custom</option>
+          <option class="gradient_option" value="inferno">inferno</option>
+          <option class="gradient_option" value="magma">magma</option>
+          <option class="gradient_option" value="viridis">viridis</option>
+        </select>
+        <span class="custom_gradient_controls">
+        (
         <input id="left_start_color" type="color" value="#f0e8c8" >
         <!--"#c1c9f8"-->
         to
         <input id="left_end_color" type="color" value="#631200">
         <!--"#000834"-->
-        (or gradient:
-        <select id="left_gradient_select">
-          <option class="gradient_option" value="inferno">Inferno</option>
-          <option class="gradient_option" value="magma">Magma</option>
-          <option class="gradient_option" value="viridis">Viridis</option>
-        </select>
         )
+        </span>
       </div>
       <div class="controls_row">
         X-axis: <select id="left_x_select"></select>

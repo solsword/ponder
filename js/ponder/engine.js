@@ -15,12 +15,13 @@ function (d3, d3sc, utils, qt, viz, prp) {
   // Milliseconds to wait during active polling.
   var THUNK_MS = 75;
 
-  // The data:
-  var DXRANGE = [ undefined, undefined ];
-  var DYRANGE = [ undefined, undefined ];
-
   // The current dataset
   var DATA;
+
+  // Attributes extracted from the current dataset 
+  var PROPERTIES;
+  // Map from index strings to attribute entries
+  var INDEX_MAP = {};
 
   // Whether to use density rectangles or point approximations
   var SHOW_DENSITY = false;
@@ -28,6 +29,9 @@ function (d3, d3sc, utils, qt, viz, prp) {
   // Which attributes to use for x- and y-axes:
   var X_INDEX = undefined;
   var Y_INDEX = undefined;
+  // The domains of those attributes
+  var X_DOMAIN = undefined;
+  var Y_DOMAIN = undefined;
 
   // Spatial resolution constraints (in screen pixels):
   var MIN_RADIUS = 0.5; // how small the lens can be
@@ -40,6 +44,7 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   // Which property to use for point colors
   var COLOR_BY = undefined;
+  var COLOR_DOMAIN = undefined;
 
   // Mouse scroll correction factors:
   var PIXELS_PER_LINE = 18;
@@ -205,31 +210,18 @@ function (d3, d3sc, utils, qt, viz, prp) {
     // Draw the quadtree:
     var dplot = d3.select("#qt_density");
     dplot.selectAll("*").remove();
+    if (COLOR_BY == undefined) {
+      var color_by = undefined;
+    } else {
+      var color_by = COLOR_VALUE;
+    }
     viz.draw_quadtree(
       dplot,
       QUADTREE,
       LEFT_COLOR_SCALE,
       VIZ_RESOLUTION,
       SHOW_DENSITY,
-      undefined
-      /* DEBUG
-      function (d) {
-        var cx = lens_x;
-        var cy = lens_y;
-        var r = lens_r;
-        var x = QUADTREE.getx(d);
-        var y = QUADTREE.gety(d);
-        if (
-          x >= cx - r && x <= cx + r
-       && y >= cy - r && y <= cy + r
-       && r*r >= (x - cx) * (x - cx) + (y - cy) * (y - cy)
-        ) {
-          return 1;
-        } else {
-          return 0;
-        }
-      }
-      // */
+      color_by
     );
 
     // Add lenses last!
@@ -369,7 +361,15 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   function left_cattr_selected() {
     var val = utils.get_selected_value(this);
-    // TODO: HERE
+    if (val == "density") {
+      COLOR_BY = undefined;
+      COLOR_DOMAIN = undefined;
+    } else {
+      var entry = INDEX_MAP[val];
+      COLOR_BY = entry[0];
+      COLOR_DOMAIN = entry[1];
+    }
+    update_left_window();
   }
 
   function left_start_color_selected() {
@@ -384,7 +384,9 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   function left_x_selected() {
     var val = this.value;
-    X_INDEX = prp.string__index(val);
+    var entry = INDEX_MAP[val];
+    X_INDEX = entry[0];
+    X_DOMAIN = entry[1];
     update_left_range();
 
     rebuild_quadtree();
@@ -394,8 +396,9 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   function left_y_selected() {
     var val = this.value;
-    Y_INDEX = prp.string__index(val);
-    update_left_range();
+    var entry = INDEX_MAP[val];
+    Y_INDEX = entry[0];
+    Y_DOMAIN = entry[1];
 
     rebuild_quadtree();
 
@@ -490,14 +493,36 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   // Updates the ranges of the left-hand plot
   function update_left_range() {
-    DXRANGE[0] = d3.min(DATA, x_value);
-    DXRANGE[1] = d3.max(DATA, x_value);
-    DYRANGE[0] = d3.min(DATA, y_value);
-    DYRANGE[1] = d3.max(DATA, y_value);
-    var xr = DXRANGE[1] - DXRANGE[0];
-    var yr = DYRANGE[1] - DYRANGE[0];
-    LEFT_X_SCALE.domain([DXRANGE[0] - DPAD * xr, DXRANGE[1] + DPAD * xr]);
-    LEFT_Y_SCALE.domain([DYRANGE[0] - DPAD * yr, DYRANGE[1] + DPAD * yr]);
+    var xd = X_DOMAIN;
+    var xmin, xmax, ymin, ymax;
+    if (X_DOMAIN == undefined) {
+      xmin = -1;
+      xmax = 1;
+    } else {
+      if (X_DOMAIN instanceof Set) {
+        xmin = 0;
+        xmax = X_DOMAIN.size;
+      } else {
+        xmin = X_DOMAIN[0];
+        xmax = X_DOMAIN[1];
+      }
+    }
+    if (Y_DOMAIN == undefined) {
+      ymin = -1;
+      ymax = 1;
+    } else {
+      if (Y_DOMAIN instanceof Set) {
+        ymin = 0;
+        ymax = Y_DOMAIN.size;
+      } else {
+        ymin = Y_DOMAIN[0];
+        ymax = Y_DOMAIN[1];
+      }
+    }
+    var xr = xmax - xmin;
+    var yr = ymax - ymin;
+    LEFT_X_SCALE.domain([xmin - DPAD * xr, xmax + DPAD * xr]);
+    LEFT_Y_SCALE.domain([ymin - DPAD * yr, ymax + DPAD * yr]);
 
     d3.select("#left_x_axis")
       .call(d3.axisBottom(LEFT_X_SCALE));
@@ -510,20 +535,54 @@ function (d3, d3sc, utils, qt, viz, prp) {
   // global DATA value.
   function update_controls() {
     // Analyze properties of the data
-    var properties = prp.assess_properties(DATA);
+    PROPERTIES = prp.assess_properties(DATA);
 
-    var indices = prp.all_indices(properties);
+    var indices = prp.all_indices(PROPERTIES);
 
+    INDEX_MAP = {};
     var attributes = [];
     for (var i = 0; i < indices.length; ++i) {
       var ind = indices[i];
-      attributes.push([prp.index__string(ind), ind]);
+      var keys = ind[0];
+      var domain = ind[1];
+      var istr = prp.index__string(keys);
+      attributes.push([istr, keys, domain]);
+      INDEX_MAP[istr] = [keys, domain];
     }
 
     X_INDEX = attributes[0][1];
+    X_DOMAIN = attributes[0][2];
     Y_INDEX = attributes[1][1];
+    Y_DOMAIN = attributes[1][2];
 
     update_left_range();
+
+    var with_default = [ "default" ].concat(attributes);
+    var lcs = d3.select("#left_color_select");
+    lcs.selectAll("option").exit().remove();
+    lcs.selectAll("option")
+      .data(with_default)
+    .enter().append("option")
+      .attr(
+        "value",
+        function (d) {
+          if (d === "default") {
+            return "density";
+          } else {
+            return d[0];
+          }
+        }
+      )
+      .text(
+        function (d) {
+          if (d === "default") {
+            return "density (default)";
+          } else {
+            return d[0];
+          }
+        }
+      );
+    lcs.selectAll("option").filter(d => d === "default").attr("selected", true);
 
     var lxs = d3.select("#left_x_select");
     lxs.selectAll("option").exit().remove();
@@ -584,7 +643,15 @@ function (d3, d3sc, utils, qt, viz, prp) {
       return d3.interpolate(RIGHT_START_COLOR, RIGHT_END_COLOR)(t);
     };
     COLOR_VALUE = function(d) {
-      return prp.get_value(d, COLOR_BY);
+      if (COLOR_DOMAIN instanceof Set) {
+        // TODO: HERE!
+        return prp.get_value(d, COLOR_BY);
+      } else if (Array.isArray(COLOR_DOMAIN)) {
+        var val = prp.get_value(d, COLOR_BY);
+        return (val - COLOR_DOMAIN[0]) / (COLOR_DOMAIN[1] - COLOR_DOMAIN[0]);
+      } else { // (bad) default
+        return prp.get_value(d, COLOR_BY);
+      }
     };
 
     // Placeholder text

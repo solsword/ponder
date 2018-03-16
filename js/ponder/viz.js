@@ -170,7 +170,7 @@ function (d3, utils, qt, prp) {
         }
       } else {
         function color_for(d) {
-          var items = d.node.items;
+          var items = qt.node_items(d.node);
           var c = 0;
           for (var i = 0; i < items.length; ++i) {
             c += color_by(items[i]);

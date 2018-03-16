@@ -7,6 +7,7 @@ define(["d3", "./utils"], function (d3, utils) {
    * Helper functions
    */
 
+  // Number formatter with variable precision based on number magnitude
   function format_number(n) {
     if (Number.isInteger(n)) {
       if (n < 100000) {
@@ -23,40 +24,6 @@ define(["d3", "./utils"], function (d3, utils) {
     }
   }
 
-  // Decides the type of a field given an example value.
-  function assess_type(value) {
-    if (Array.isArray(value)) {
-      var subtype = assess_type(value[0]);
-      var dimension = value.length;
-      if (Array.isArray(subtype)) {
-        if (subtype[0] == "tensor") {
-          subtype = [ "tensor", [ dimension ] + subtype[1], subtype[2] ];
-        }
-      }
-      return [ "tensor", [ dimension ], subtype ];
-    } else if (typeof value === "object") {
-      var subtypes = {};
-      var anykeys = false;
-      for (var k in value) {
-        if (value.hasOwnProperty(k)) {
-          subtypes[k] = assess_type(value[k]);
-          anykeys = true;
-        }
-      }
-      if (anykeys) {
-        return [ "map", subtypes ];
-      } else {
-        return "object";
-      }
-    } else if (typeof value === "string") {
-      return "string";
-    } else if (typeof value === "number") {
-      return "number";
-    } else { // an unknown type (e.g., if value is undefined)
-      return "unknown";
-    }
-  }
-
   // Returns a formatter function for values of the given type.
   function formatter_for_type(typ) {
     if (typ == "number") {
@@ -66,6 +33,186 @@ define(["d3", "./utils"], function (d3, utils) {
       return function (v) { return "" + v; };
     } else { // anything else:
       return function (v) { return "" + v; };
+    }
+  }
+
+  // Decides the type of a field given an example value. Types are objects with
+  // the following keys:
+  //
+  //   kind
+  //     The basic kind of value. The possible kinds are:
+  //
+  //       unknown
+  //       undefined
+  //       null
+  //       object
+  //       number
+  //       string
+  //       tensor
+  //       map
+  //
+  //   value_type
+  //     For "tensor" values, the type of each value
+  //
+  //   dimensions
+  //     For "tensor" values, an array of dimension extents
+  //
+  //   subtypes
+  //     For "map" values, a map from keys to field subtypes
+  //
+  //   domain
+  //     An object representing possible values. For "number" values, this will
+  //     be an array of [ min, max ] values. For "string" values, it will be a
+  //     Set of string values. "tensor" and "map" values don't have domains
+  //     (use the domain(s) of their subtype(s)).
+  function assess_type(value) {
+    if (Array.isArray(value)) {
+      var dimension = value.length;
+      // compute subtype
+      var subtype;
+      if (dimension > 0) {
+        subtype = assess_type(value[0]);
+      } else {
+        subtype = { "kind": "undefined" };
+      }
+      for (var i = 1; i < dimension; ++i) {
+        subtype = combined_type(subtype, assess_type(value[i]));
+      }
+
+      // merge tensor subtype dimensions to flatten tensor types:
+      if (subtype.kind === "tensor") {
+        return {
+          "kind": "tensor",
+          "value_type": subtype.value_type,
+          "dimensions": [dimension].concat(subtype.dimensions)
+        }
+      } else { // or just return 1D tensor:
+        return {
+          "kind": "tensor",
+          "value_type": subtype,
+          "dimensions": [ dimension ],
+        };
+      }
+    } else if (typeof value === "object") {
+      if (value === null) {
+        return { "kind": "null" };
+      }
+      var subtypes = {};
+      var anykeys = false;
+      for (var k in value) {
+        if (value.hasOwnProperty(k)) {
+          subtypes[k] = assess_type(value[k]);
+          anykeys = true;
+        }
+      }
+      if (anykeys) {
+        return { "kind": "map", "subtypes": subtypes };
+      } else {
+        return { "kind": "object" };
+      }
+    } else if (typeof value === "string") {
+      return { "kind": "string", "domain": new Set([ value ]) };
+    } else if (typeof value === "number") {
+      return { "kind": "number", "domain": [ value, value ] };
+    } else if (value === undefined) {
+      return { "kind": "undefined" };
+    } else { // an unknown type
+      return { "kind": "unknown" };
+    }
+  }
+
+  // Computes a combined type for two types ot (original type) and nt (new
+  // type). The combined type can hold values from either subtype.
+  function combined_type(ot, nt) {
+    if (utils.is_equal(ot, nt)) {
+      return ot;
+    } else {
+      if (ot.kind === "undefined") { // beats nothing
+        return nt;
+      } else if (ot.kind === "unknown") { // beats everything
+        return ot;
+      } else if (ot.kind === "null") { // beats only 'undefined'
+        if (nt.kind === "undefined") {
+          return ot;
+        } else {
+          return nt;
+        }
+      } else if (ot.kind === "number") {
+        if (nt.kind === "undefined" || nt.kind === "null") {
+          // just missing value(s)
+          return ot;
+        } else if (nt.kind === "number") {
+          return {
+            "kind": "number",
+            "domain": [
+              Math.min(ot.domain[0], nt.domain[0]),
+              Math.max(ot.domain[1], nt.domain[1])
+            ]
+          };
+        } else { // can't combine
+          return { "kind": "unknown" };
+        }
+      } else if (ot.kind === "string") {
+        if (nt.kind === "undefined" || nt.kind === "null") { // subsume
+          return ot;
+        } else if (nt.kind === "string") {
+          return {
+            "kind": "string",
+            "domain": new Set([...ot.domain, ...nt.domain])
+          };
+        } else { // can't combine
+          return { "kind": "unknown" };
+        }
+      } else if (ot.kind === "object") {
+        if (nt.kind === "undefined" || nt.kind === "null") {
+          return ot;
+        } else {
+          return { "kind": "unknown" };
+        }
+      } else if (ot.kind === "map") {
+        if (nt.kind === "undefined" || nt.kind === "null") {
+          return ot;
+        } else if (Array.isArray(nt) && nt[0] == "map") { // combine subtypes!
+          var subtypes = ot.subtypes;
+          var nst = nt.subtypes;
+          var cst = {};
+          for (var k in subtypes) {
+            if (subtypes.hasOwnProperty(k)) {
+              if (nst.hasOwnProperty(k)) {
+                cst[k] = combined_type(subtypes[k], nst[k]);
+              } else {
+                cst[k] = subtypes[k];
+              }
+            }
+          }
+          for (var k in nst) {
+            if (nst.hasOwnProperty(k) && !subtypes.hasOwnProperty(k)) {
+              cst[k] = nst[k];
+            }
+          }
+          return { "kind": "map", "subtypes": cst };
+        } else {
+          return { "kind": "unknown" };
+        }
+      } else if (ot.kind === "tensor") {
+        if (nt.kind === "undefined" || nt.kind === "null") {
+          return ot;
+        } else {
+          if (utils.is_equal(ot.dimensions, nt.dimensions)) {
+            return {
+              "kind": "tensor",
+              "dimensions": ot.dimensions,
+              "value_type": combined_type(ot.value_type, nt.value_type)
+            };
+          // TODO: Tensors of different dimensions subsuming each other?
+          } else {
+            return { "kind": "unknown" };
+          }
+        }
+      } else { // um... !?!
+        console.warn("Unknown type during combination: '" + ot + "'");
+        return { "kind": "unknown" };
+      }
     }
   }
 
@@ -155,76 +302,107 @@ define(["d3", "./utils"], function (d3, utils) {
   // Returns an array of all possible indexes for the given type. Each index is
   // a tuple of keys to be applied to a data item to get a value out. The given
   // name is used as the initial index in this array.
+  //
+  // The returned indices are each paired with a domain when that information
+  // is available, or else with undefined.
   function property_indices(name, type) {
-    if (Array.isArray(type)) {
-      var options = [];
-      if (type[0] == "map") { // a map
-        var tkeys = type[1];
-        for (var k in tkeys) {
-          if (tkeys.hasOwnProperty(k)) {
-            var sub_indices = property_indices(k, tkeys[k]);
-            options.push([ name ].concat(sub_indices));
+    var options = [];
+    if (type.kind === "map") {
+      var subtypes = type.subtypes;
+      for (var k in subtypes) {
+        if (subtypes.hasOwnProperty(k)) {
+          var sub_indices = property_indices(k, subtypes[k]);
+          for (var j = 0; j < sub_indices.length; ++j) {
+            var si = sub_indices[j];
+            var keys = si[0];
+            var domain = si[1];
+            options.push([ [ name ].concat(keys), domain ]);
           }
         }
-      } else { // a tensor:
-        if (type[1].length > 1) {
-          var sub_indices = property_indices(
-            "ignored",
-            [type[0], type[1].slice(1), type[2]]
-          );
-        } else {
-          var sub_indices = property_indices("ignored", type[2]);
-        }
-        for (var i = 0; i < type[1][0]; ++i) {
-          options.push([name, i].concat(sub_indices.slice(1)));
+      }
+    } else if (type.kind === "tensor") {
+      if (type.dimensions.length > 1) {
+        var sub_indices = property_indices(
+          "ignored",
+          {
+            "kind": tensor,
+            "value_type": type.value_type,
+            "dimensions": type.dimensions.slice(1),
+          }
+        );
+      } else {
+        var sub_indices = property_indices("ignored", type.value_type);
+      }
+      for (var i = 0; i < type.dimensions[0]; ++i) {
+        for (var j = 0; j < sub_indices.length; ++j) {
+          var si = sub_indices[j];
+          var keys = si[0];
+          var domain = si[1];
+          options.push([ [name, i].concat(keys.slice(1)), domain ]);
         }
       }
-      return options;
+    } else if (type.kind === "number" || type.kind === "string") {
+      options.push([ [ name ], type.domain ]);
     } else {
-      return [ [ name ] ];
+      options.push([ [ name ], undefined ]);
     }
+    return options;
   }
 
-  // Returns an array of all indices of a list of properties.
+  // Returns an array of all indices of a dictionary of properties (such as
+  // that returned by assess_properties). Each possible index is paired with a
+  // domain value if one is available, or undefined.
   function all_indices(properties) {
     var result = [];
-    for (var i = 0; i < properties.length; ++i) {
-      var prp = properties[i];
-      result = result.concat(property_indices(prp.name, prp.type));
+    for (var k in properties) {
+      if (properties.hasOwnProperty(k)) {
+        var prp = properties[k];
+        result = result.concat(property_indices(prp.name, prp.type));
+      }
     }
     return result;
   }
 
-  // Looks at the data (mostly just the first item) and returns a list of
+  // Looks at the data (mostly just the first item) and returns a dictionary of
   // detected properties. Each property is an object with the following fields:
   //
   //   name
   //     The key for this property in each item.
   //   type
   //     The type of the property. May be a compound type.
-  //   formatter
-  //     A function that takes a value and returns a string to display to the
-  //     user to represent that value.
   //
   function assess_properties(data) {
-    var first = data[0];
-    var results = [];
-    // TODO: Worry about attribute ordering here?
-    for (var k in first) {
-      if (first.hasOwnProperty(k)) {
-        var prp = {};
-        prp.name = k;
-        prp.type = assess_type(first[k]);
-        prp.formatter = formatter_for_type(prp.type);
-        results.push(prp);
+    var properties = {};
+    // TODO: This is slow!!!
+    // Allow properties input separately?
+    // Do this in a web worker asynchronously?
+    for (var i = 0; i < data.length; ++i) {
+      var d = data[i];
+      // TODO: Worry about attribute ordering here?
+      for (var k in d) {
+        if (d.hasOwnProperty(k)) {
+          var prp;
+          if (properties.hasOwnProperty(k)) {
+            prp = properties[k];
+            prp.type = combined_type(prp.type, assess_type(d[k]));
+          } else {
+            prp = {};
+            prp.name = k;
+            prp.type = assess_type(d[k]);
+            properties[k] = prp;
+          }
+        }
       }
     }
-    return results;
+    return properties;
   }
 
   return {
     "format_number": format_number,
+    "formatter_for_type": formatter_for_type,
     "get_value": get_value,
+    "assess_type": assess_type,
+    "combined_type": combined_type,
     "index__string": index__string,
     "string__index": string__index,
     "property_indices": property_indices,
