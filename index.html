@@ -17,7 +17,7 @@
   <div id="controls">
     <div id="left_controls" class="control_panel">
       <div class="controls_row">
-      Data file:
+        Data file:
         <input id="data_file" type="file" />
       </div>
       <div class="controls_row">
@@ -25,18 +25,25 @@
         Show point approximation (instead of density)
       </div>
       <div class="controls_row">
-      Color by:
+        Color by:
         <select id="left_color_select">
           <option value="density" selected>density (default)</option>
         </select>
-        using
-        <select id="left_gradient_select">
+      </div>
+      <div class="controls_row">
+        Color scale:
+        <select id="left_gradient_select" class="gradient_select">
           <option class="gradient_option" value="custom" selected>custom</option>
-          <option class="gradient_option" value="inferno">inferno</option>
-          <option class="gradient_option" value="magma">magma</option>
-          <option class="gradient_option" value="viridis">viridis</option>
+          <optgroup label="Categorical" id="left_categorical_schemes">
+          </optgroup>
+          <optgroup label="Diverging" id="left_diverging_gradients">
+          </optgroup>
+          <optgroup label="Sequential" id="left_sequential_gradients">
+          </optgroup>
+          <optgroup label="Cyclical" id="left_cyclical_gradients">
+          </optgroup>
         </select>
-        <span class="custom_gradient_controls">
+        <span id="left_custom_gradient">
         (
         <input id="left_start_color" type="color" value="#f0e8c8" >
         <!--"#c1c9f8"-->
@@ -45,6 +52,7 @@
         <!--"#000834"-->
         )
         </span>
+        <span id="left_gradient_demo" class="gradient_demo">&nbsp;</span>
       </div>
       <div class="controls_row">
         X-axis: <select id="left_x_select"></select>

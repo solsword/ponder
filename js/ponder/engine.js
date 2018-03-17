@@ -70,15 +70,6 @@ function (d3, d3sc, utils, qt, viz, prp) {
   var RIGHT_X_SCALE;
   var RIGHT_Y_SCALE;
 
-  // Color transforms
-  var LEFT_COLOR_SCALE;
-  var LEFT_START_COLOR = d3.select("#left_start_color").attr("value");
-  var LEFT_END_COLOR = d3.select("#left_end_color").attr("value");
-  var RIGHT_COLOR_SCALE;
-  var RIGHT_START_COLOR = d3.rgb(193, 201, 248);
-  var RIGHT_END_COLOR = d3.rgb(0, 8, 52);
-  var COLOR_VALUE;
-
   // DOM objects
   var LEFT_WINDOW;
   var RIGHT_WINDOW;
@@ -88,6 +79,73 @@ function (d3, d3sc, utils, qt, viz, prp) {
   // The lens circle & shadow
   var LENS;
   var SHADOW;
+
+  // Color transforms
+  var LEFT_COLOR_SCALE;
+  var LEFT_START_COLOR = d3.select("#left_start_color").attr("value");
+  var LEFT_END_COLOR = d3.select("#left_end_color").attr("value");
+  var LEFT_GRADIENT = undefined;
+  var RIGHT_COLOR_SCALE;
+  var RIGHT_START_COLOR = d3.rgb(193, 201, 248);
+  var RIGHT_END_COLOR = d3.rgb(0, 8, 52);
+  var COLOR_VALUE;
+
+  // Preset gradients
+  var CAT_SCHEMES = [
+    [ "cat10", d3sc.schemeCategory10 ],
+    [ "accent", d3sc.schemeAccent ],
+    [ "dark2", d3sc.schemeDark2 ],
+    [ "paired", d3sc.schemePaired ],
+    [ "pastel1", d3sc.schemePastel1 ],
+    [ "pastel2", d3sc.schemePastel2 ],
+    [ "set1", d3sc.schemeSet1 ],
+    [ "set2", d3sc.schemeSet2 ],
+    [ "set3", d3sc.schemeSet3 ],
+  ];
+  var DV_GRADIENTS = [
+    [ "brbg", d3sc.interpolateBrBG ],
+    [ "prgn", d3sc.interpolatePRGn ],
+    [ "piyg", d3sc.interpolatePiYG ],
+    [ "puor", d3sc.interpolatePuOr ],
+    [ "rdbu", d3sc.interpolateRdBu ],
+    [ "rdgy", d3sc.interpolateRdGy ],
+    [ "rdlybu", d3sc.interpolateRdYlBu ],
+    [ "rdylgn", d3sc.interpolateRdYlGn ],
+    [ "spectral", d3sc.interpolateSpectral ],
+  ];
+  var SQ_GRADIENTS = [
+    [ "gr", d3sc.interpolateGreys ],
+    [ "ge", d3sc.interpolateGreens ],
+    [ "or", d3sc.interpolateOranges ],
+    [ "rd", d3sc.interpolateReds ],
+    [ "pu", d3sc.interpolatePurples ],
+    [ "bu", d3sc.interpolateBlues ],
+    [ "viridis", d3sc.interpolateViridis ],
+    [ "inferno", d3sc.interpolateInferno ],
+    [ "magma", d3sc.interpolateMagma ],
+    [ "plasma", d3sc.interpolatePlasma ],
+    [ "warm", d3sc.interpolateWarm ],
+    [ "cubehelix", d3sc.interpolateCubehelixDefault ],
+    [ "ylgn", d3sc.interpolateYlGn ],
+    [ "gnbu", d3sc.interpolateGnBu ],
+    [ "pubu", d3sc.interpolatePuBu ],
+    [ "purd", d3sc.interpolatePuRd ],
+    [ "rdpu", d3sc.interpolateRdPu ],
+    [ "orrd", d3sc.interpolateOrRd ],
+    [ "pubugn", d3sc.interpolatePuBuGn ],
+    [ "ylgnbu", d3sc.interpolateYlGnBu ],
+    [ "ylorrd", d3sc.interpolateYlOrRd ],
+  ];
+  var CYC_GRADIENTS = [
+    [ "rainbow", d3sc.interpolateRainbow ],
+  ];
+  // List of all possible gradient types
+  var GTYPES = [
+    CAT_SCHEMES,
+    DV_GRADIENTS,
+    SQ_GRADIENTS,
+    CYC_GRADIENTS
+  ];
 
   /*
    * Helper functions
@@ -379,6 +437,63 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   function left_end_color_selected() {
     LEFT_END_COLOR = this.value;
+    update_left_window();
+  }
+
+  function left_gradient_selected() {
+    var val = utils.get_selected_value(this);
+    if (val === "custom") {
+      LEFT_GRADIENT = d3.interpolateCubehelix(LEFT_START_COLOR, LEFT_END_COLOR);
+      LEFT_COLOR_SCALE = t => LEFT_GRADIENT(t);
+      d3.select("#left_gradient_demo")
+        .style("background", utils.css_gradient("to right", LEFT_GRADIENT));
+      d3.select("#left_custom_gradient").style("display", "inline");
+    } else {
+      d3.select("#left_custom_gradient").style("display", "none");
+      var selected = undefined;
+      for (var i = 0; i < GTYPES.length; ++i) {
+        var gt = GTYPES[i];
+        for (var j = 0; j < gt.length; ++j) {
+          var opt = gt[j];
+          if (opt[0] === val) {
+            selected = opt;
+            break;
+          }
+        }
+        if (selected != undefined) {
+          break;
+        }
+      }
+
+      if (selected == undefined) {
+        console.error("Invaild gradient selection: '" + val + "'");
+        LEFT_GRADIENT = d3.interpolateCubehelix(
+          LEFT_START_COLOR,
+          LEFT_END_COLOR
+        );
+        LEFT_COLOR_SCALE = t => LEFT_GRADIENT(t);
+        d3.select("#left_gradient_demo")
+          .style("background", utils.css_gradient("to right", LEFT_GRADIENT));
+      } else {
+        // TODO: Legend?!?
+        LEFT_GRADIENT = selected[1];
+        if (Array.isArray(LEFT_GRADIENT)) {
+          LEFT_COLOR_SCALE = function(t) {
+            var i = Math.floor(t);
+            // TODO: Cycle instead of clamp?
+            if (i < 0) { i = 0; }
+            if (i > LEFT_GRADIENT.length - 1) { i = LEFT_GRADIENT.length - 1; }
+            return LEFT_GRADIENT[i];
+          };
+          d3.select("#left_gradient_demo")
+            .style("background", utils.css_scheme("to right", LEFT_GRADIENT));
+        } else {
+          LEFT_COLOR_SCALE = t => LEFT_GRADIENT(t);
+          d3.select("#left_gradient_demo")
+            .style("background", utils.css_gradient("to right", LEFT_GRADIENT));
+        }
+      }
+    }
     update_left_window();
   }
 
@@ -684,6 +799,44 @@ function (d3, d3sc, utils, qt, viz, prp) {
     d3.select("#left_color_select").on("change", left_cattr_selected);
     d3.select("#left_start_color").on("change", left_start_color_selected);
     d3.select("#left_end_color").on("change", left_end_color_selected);
+
+    d3.select("#left_gradient_select").on("change", left_gradient_selected);
+    var lcg = d3.select("#left_categorical_schemes")
+    lcg.selectAll("option").exit().remove();
+    lcg.selectAll("option")
+      .data(CAT_SCHEMES)
+    .enter().append("option")
+      .attr("class", "gradient_option")
+      .attr("value", d => d[0])
+      .style("background", d => utils.css_scheme("to right", d[1]))
+      .text(d => d[0]);
+    var ldg = d3.select("#left_diverging_gradients")
+    ldg.selectAll("option").exit().remove();
+    ldg.selectAll("option")
+      .data(DV_GRADIENTS)
+    .enter().append("option")
+      .attr("class", "gradient_option")
+      .attr("value", d => d[0])
+      .style("background", d => utils.css_gradient("to right", d[1]))
+      .text(d => d[0]);
+    var lsg = d3.select("#left_sequential_gradients")
+    lsg.selectAll("option").exit().remove();
+    lsg.selectAll("option")
+      .data(SQ_GRADIENTS)
+    .enter().append("option")
+      .attr("class", "gradient_option")
+      .attr("value", d => d[0])
+      .style("background", d => utils.css_gradient("to right", d[1]))
+      .text(d => d[0]);
+    var lcg = d3.select("#left_cyclical_gradients")
+    lcg.selectAll("option").exit().remove();
+    lcg.selectAll("option")
+      .data(CYC_GRADIENTS)
+    .enter().append("option")
+      .attr("class", "gradient_option")
+      .attr("value", d => d[0])
+      .style("background", d => utils.css_gradient("to right", d[1]))
+      .text(d => d[0]);
 
     d3.select("#left_x_select").on("change", left_x_selected);
     d3.select("#left_y_select").on("change", left_y_selected);

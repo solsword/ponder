@@ -6,9 +6,17 @@ define(["d3"], function (d3) {
   // Tolerable floating point rounding error
   var EPSILON = 1e-12;
 
+  // Default number of stops for creating CSS gradient backgrounds
+  var DEFAULT_GRADIENT_STOPS = 12;
+
   /*
    * Helper functions
    */
+
+  // Modulus which only returns positive values.
+  function posmod(n, b) {
+    return ((n % b) + b) % b;
+  }
 
   function get_bbox(obj) {
     var node = obj.node();
@@ -255,8 +263,68 @@ define(["d3"], function (d3) {
     }
   }
 
+  // Returns a CSS background property gradient value for the given color
+  // interpolation function (or color array). n_stops is optional and defaults
+  // to DEFAULT_GRADIENT_STOPS.
+  function css_gradient(direction, int_or_array, n_stops) {
+    if (n_stops == undefined) {
+      n_stops = DEFAULT_GRADIENT_STOPS;
+    }
+    var colors;
+    if (Array.isArray(int_or_array)) { // must be an interpolation function
+      colors = int_or_array;
+    } else {
+      colors = [];
+      for (var i = 0; i <= n_stops; ++i) {
+        colors.push(int_or_array(i/n_stops));
+      }
+    }
+    var val = "linear-gradient(" + direction + ","
+    for (var i = 0; i < colors.length; ++i) {
+      val += colors[i];
+      if (i < colors.length - 1) {
+        val += ",";
+      }
+    }
+    val += ")";
+    return val;
+  }
+
+  // Returns a CSS background property gradient value for the given color list,
+  // which uses hard stops to create a sequence of colors blocks with hard
+  // edges instead of an actual gradient. n_stops is optional and defaults to
+  // DEFAULT_GRADIENT_STOPS.
+  function css_scheme(direction, int_or_array, n_stops) {
+    if (n_stops == undefined) {
+      n_stops = DEFAULT_GRADIENT_STOPS;
+    }
+    var colors;
+    if (Array.isArray(int_or_array)) { // must be an interpolation function
+      colors = int_or_array;
+    } else {
+      colors = [];
+      for (var i = 0; i <= n_stops; ++i) {
+        colors.push(int_or_array(i/n_stops));
+      }
+    }
+    var val = "linear-gradient(" + direction + ","
+    var pct = 100 / colors.length;
+    for (var i = 0; i < colors.length; ++i) {
+      if (i > 0) {
+        val += colors[i] + " " + (pct * i) + "%,";
+      }
+      val += colors[i] + " " + (pct * (i + 1)) + "%";
+      if (i < colors.length - 1) {
+        val += ",";
+      }
+    }
+    val += ")";
+    return val;
+  }
+
   return {
     "EPSILON": EPSILON,
+    "posmod": posmod,
     "get_bbox": get_bbox,
     "get_width": get_width,
     "get_height": get_height,
@@ -267,5 +335,7 @@ define(["d3"], function (d3) {
     "is_fp_equal": is_fp_equal,
     "deep_copy": deep_copy,
     "diff": diff,
+    "css_gradient": css_gradient,
+    "css_scheme": css_scheme,
   };
 });

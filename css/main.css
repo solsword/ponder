@@ -62,6 +62,24 @@ body {
   stroke: #888;
 }
 
+.gradient_select {
+  appearance: none;
+}
+
+.gradient_demo {
+  display: inline-block;
+  width: 6em;
+}
+
+.gradient_option {
+  color: #000;
+  text-shadow: /* Fake outline */
+    -1pt -1pt 0 #fff,
+     1pt -1pt 0 #fff,
+    -1pt  1pt 0 #fff,
+     1pt  1pt 0 #fff;
+}
+
 /* SVG elements */
 
 .axis path,
