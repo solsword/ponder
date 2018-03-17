@@ -85,20 +85,27 @@ function (d3, utils, qt, prp) {
   // as_rects is off, the point size scales slightly with density to somewhat
   // enhance perceptual accuracy of density among points, although of course
   // there's still some distortion. This size scaling is disabled when color_by
-  // is given. Use as_rects for a less-biased view of density.
+  // is given. Use as_rects for a less-biased view of density. The labels
+  // argument can be given to supply labels for each item, but should usually
+  // only be used when the data is sparse. Labels from multiple items are
+  // combined according to a most-frequent scheme, and an asterisk is appended
+  // if the labels being combined aren't all identical. If there's a tie for
+  // most-frequent, just an asterisk is used. Labels are ignored completely
+  // when as_rects is true.
   function draw_quadtree(
     element,
     tree,
     color_scale,
     min_resolution,
     as_rects,
-    color_by
+    color_by,
+    labels
   ) {
-    if (color_scale == undefined) {
+    if (color_scale === undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
     }
 
-    if (min_resolution == undefined) {
+    if (min_resolution === undefined) {
       min_resolution = DEFAULT_MIN_RESOLUTION;
     }
 
@@ -115,7 +122,7 @@ function (d3, utils, qt, prp) {
     );
 
     if (as_rects) { // shade density over rectangles
-      if (color_by == undefined) {
+      if (color_by === undefined) {
         function color_for(d) {
           return color_scale(d.relative_density);
         }
@@ -161,7 +168,7 @@ function (d3, utils, qt, prp) {
       element.selectAll("rect").remove();
 
       // figure out coloring
-      if (color_by == undefined) {
+      if (color_by === undefined) {
         function color_for(d) {
           return color_scale(d.relative_density);
         }
@@ -193,30 +200,57 @@ function (d3, utils, qt, prp) {
         .attr("cy", d => d.centroid[1])
         .attr("r", radius_of)
         .attr("fill", color_for);
-      /*/  // DEBUG
-      element.selectAll("rect").exit().remove();
-      element.selectAll("rect")
-        .data(leaves)
-      .enter().append("rect")
-        .attr("class", "region")
-        .attr("x", d => d.extent[0][0])
-        .attr("y", d => d.extent[0][1])
-        .attr(
-          "width",
-          function (d) {
-            var e = d.extent;
-            return e[1][0] - e[0][0];
+
+      if (labels != undefined) {
+        function label_for(d) {
+          var items = qt.node_items(d.node);
+          if (items.length == 1) {
+            return "" + labels(items[0]);
+          } else {
+            var frequencies = {};
+            var winner = undefined;
+            for (var i = 0; i < items.length; ++i) {
+              var l = "" + labels(items[i]);
+              if (frequencies.hasOwnProperty(l)) {
+                frequencies[l] += 1;
+              } else {
+                frequencies[l] = 1;
+              }
+              if (winner === undefined || frequencies[winner] < frequencies[l]) {
+                winner = l;
+              }
+            }
+            var tied = false;
+            var count = 0;
+            for (var k in frequencies) {
+              if (frequencies.hasOwnProperty(k)) {
+                if (frequencies[k] == frequencies[winner] && k != winner) {
+                  count += 1;
+                  tied = true;
+                }
+              }
+            }
+            if (tied) {
+              return "*";
+            } else if (count == 1) {
+              return winner;
+            } else {
+              return winner + "*";
+            }
           }
-        )
-        .attr(
-          "height",
-          function (d) {
-            var e = d.extent;
-            return e[1][1] - e[0][1];
-          }
-        )
-        .attr("fill", color_for);
-       // */
+        }
+        element.selectAll("text").exit().remove();
+        element.selectAll("text")
+          .data(leaves)
+        .enter().append("text")
+          .attr("class", "label")
+          .attr("x", d => d.centroid[0])
+          .attr("y", d => d.centroid[1])
+          .attr("fill", color_for)
+          .attr("dominant-baseline", "auto")
+          .attr("text-anchor", "start")
+          .text(d => label_for(d));
+      }
     }
   }
 
@@ -234,11 +268,11 @@ function (d3, utils, qt, prp) {
   //      be a map from values to numbers to use a different divisor for each
   //      value. Defaults to 1 (no normalization).
   function draw_histogram(element, counts, bar_limit, color_scale, normalize) {
-    if (color_scale == undefined) {
+    if (color_scale === undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
     }
 
-    if (normalize == undefined) {
+    if (normalize === undefined) {
       normalize = 1;
     }
 
@@ -273,7 +307,7 @@ function (d3, utils, qt, prp) {
       if (counts.hasOwnProperty(key)) {
         var bv = bar_value(key);
         pairs.push([key, bv]);
-        if (max == undefined || max < bv) {
+        if (max === undefined || max < bv) {
           max = bv;
         }
       }
@@ -321,14 +355,14 @@ function (d3, utils, qt, prp) {
       .attr("x", bx)
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
-      .style("text-anchor", "end")
+      .attr("text-anchor", "end")
       .text(function(d) { return "" + d[0] + NBSP; });
     bargroup.append("text") // count label at end of bar
       .attr("class", "label")
       .attr("x", function (d) { return bx + bw * (d[1] / max) } )
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
-      .style("text-anchor", "start")
+      .attr("text-anchor", "start")
       .text(function(d) { return bar_label(d[0]); });
   }
 

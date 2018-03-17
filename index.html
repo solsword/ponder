@@ -25,6 +25,12 @@
         Show point approximation (instead of density)
       </div>
       <div class="controls_row">
+        X-axis: <select id="left_x_select"></select>
+      </div>
+      <div class="controls_row">
+        Y-axis: <select id="left_y_select"></select>
+      </div>
+      <div class="controls_row">
         Color by:
         <select id="left_color_select">
           <option value="density" selected>density (default)</option>
@@ -55,10 +61,10 @@
         <span id="left_gradient_demo" class="gradient_demo">&nbsp;</span>
       </div>
       <div class="controls_row">
-        X-axis: <select id="left_x_select"></select>
-      </div>
-      <div class="controls_row">
-        Y-axis: <select id="left_y_select"></select>
+        Labels:
+        <select id="left_label_select">
+          <option value="none" selected>none (default)</option>
+        </select>
       </div>
     </div>
     <div id="right_controls" class="control_panel">

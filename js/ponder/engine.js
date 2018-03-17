@@ -33,6 +33,9 @@ function (d3, d3sc, utils, qt, viz, prp) {
   var X_DOMAIN = undefined;
   var Y_DOMAIN = undefined;
 
+  // What to use for labels
+  var LABEL_INDEX = undefined;
+
   // Spatial resolution constraints (in screen pixels):
   var MIN_RADIUS = 0.5; // how small the lens can be
   var MIN_REGION_SIDE = 1; // when to stop building quadtree
@@ -75,6 +78,10 @@ function (d3, d3sc, utils, qt, viz, prp) {
   var RIGHT_WINDOW;
   var LEFT_CONTROLS;
   var RIGHT_CONTROLS;
+
+  // Whether windows have been constructed yet
+  var LEFT_WINDOW_READY = false;
+  var RIGHT_WINDOW_READY = false;
 
   // The lens circle & shadow
   var LENS;
@@ -243,6 +250,7 @@ function (d3, d3sc, utils, qt, viz, prp) {
   }
 
   function update_left_window() {
+    if (!LEFT_WINDOW_READY) { return; }
 
     update_left_range();
 
@@ -268,10 +276,19 @@ function (d3, d3sc, utils, qt, viz, prp) {
     // Draw the quadtree:
     var dplot = d3.select("#qt_density");
     dplot.selectAll("*").remove();
+    var color_by;
     if (COLOR_BY == undefined) {
-      var color_by = undefined;
+      color_by = undefined;
     } else {
-      var color_by = COLOR_VALUE;
+      color_by = COLOR_VALUE;
+    }
+    var labels;
+    if (LABEL_INDEX == undefined) {
+      var labels = undefined
+    } else {
+      labels = function (d) {
+        return prp.get_value(d, LABEL_INDEX);
+      }
     }
     viz.draw_quadtree(
       dplot,
@@ -279,7 +296,8 @@ function (d3, d3sc, utils, qt, viz, prp) {
       LEFT_COLOR_SCALE,
       VIZ_RESOLUTION,
       SHOW_DENSITY,
-      color_by
+      color_by,
+      labels
     );
 
     // Add lenses last!
@@ -303,6 +321,7 @@ function (d3, d3sc, utils, qt, viz, prp) {
   }
 
   function update_right_window() {
+    if (!RIGHT_WINDOW_READY) { return; }
     // Collect items:
     var items = SELECTED;
 
@@ -339,6 +358,8 @@ function (d3, d3sc, utils, qt, viz, prp) {
     LEFT_Y_SCALE.range([utils.get_height(LEFT_WINDOW) - 2*MARGIN, 0]);
     RIGHT_X_SCALE.range([0, utils.get_width(RIGHT_WINDOW) - 2*MARGIN]);
     RIGHT_Y_SCALE.range([utils.get_height(RIGHT_WINDOW) - 2*MARGIN, 0]);
+    update_left_window();
+    update_right_window();
   }
 
   function left_motion() {
@@ -520,6 +541,18 @@ function (d3, d3sc, utils, qt, viz, prp) {
     update_left_window();
   }
 
+  function left_label_selected() {
+    var val = this.value;
+    if (val === "none") {
+      LABEL_INDEX = undefined;
+    } else {
+      var entry = INDEX_MAP[val];
+      LABEL_INDEX = entry[0];
+    }
+
+    update_left_window();
+  }
+
   /*
    * Setup functions
    */
@@ -585,6 +618,8 @@ function (d3, d3sc, utils, qt, viz, prp) {
         "translate(" + MARGIN + "," + MARGIN + ")"
       );
 
+    LEFT_WINDOW_READY = true;
+
     // Heavy lifting for left window
     update_left_window();
 
@@ -601,6 +636,8 @@ function (d3, d3sc, utils, qt, viz, prp) {
       )
       .attr("width", utils.get_width(RIGHT_WINDOW) - 2*MARGIN)
       .attr("height", utils.get_height(RIGHT_WINDOW) - 2*MARGIN);
+
+    RIGHT_WINDOW_READY = true;
 
     // Update the right window using the starting lens
     update_right_window();
@@ -716,6 +753,33 @@ function (d3, d3sc, utils, qt, viz, prp) {
       .attr("value", d => d[0])
       .text(d => d[0]);
     lys.selectAll("option").filter((d, i) => i == 1).attr("selected", true);
+
+    with_default = [ "default" ].concat(attributes);
+    var lls = d3.select("#left_label_select");
+    lls.selectAll("option").exit().remove();
+    lls.selectAll("option")
+      .data(with_default)
+    .enter().append("option")
+      .attr(
+        "value",
+        function (d) {
+          if (d === "default") {
+            return "none";
+          } else {
+            return d[0];
+          }
+        }
+      )
+      .text(
+        function (d) {
+          if (d === "default") {
+            return "none (default)";
+          } else {
+            return d[0];
+          }
+        }
+      );
+    lls.selectAll("option").filter(d => d === "default").attr("selected", true);
   }
 
   // Main setup
@@ -840,6 +904,8 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
     d3.select("#left_x_select").on("change", left_x_selected);
     d3.select("#left_y_select").on("change", left_y_selected);
+
+    d3.select("#left_label_select").on("change", left_label_selected);
   }
 
   return {
