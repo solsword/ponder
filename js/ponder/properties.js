@@ -60,11 +60,6 @@ define(["d3", "./utils"], function (d3, utils) {
   //   subtypes
   //     For "map" values, a map from keys to field subtypes
   //
-  //   domain
-  //     An object representing possible values. For "number" values, this will
-  //     be an array of [ min, max ] values. For "string" values, it will be a
-  //     Set of string values. "tensor" and "map" values don't have domains
-  //     (use the domain(s) of their subtype(s)).
   function assess_type(value) {
     if (Array.isArray(value)) {
       var dimension = value.length;
@@ -111,9 +106,9 @@ define(["d3", "./utils"], function (d3, utils) {
         return { "kind": "object" };
       }
     } else if (typeof value === "string") {
-      return { "kind": "string", "domain": new Set([ value ]) };
+      return { "kind": "string" };
     } else if (typeof value === "number") {
-      return { "kind": "number", "domain": [ value, value ] };
+      return { "kind": "number" };
     } else if (value === undefined) {
       return { "kind": "undefined" };
     } else { // an unknown type
@@ -138,28 +133,22 @@ define(["d3", "./utils"], function (d3, utils) {
           return nt;
         }
       } else if (ot.kind === "number") {
-        if (nt.kind === "undefined" || nt.kind === "null") {
-          // just missing value(s)
+        if (
+          nt.kind === "undefined"
+       || nt.kind === "null"
+       || nt.kind === "number") {
+          // missing/compatible value(s)
           return ot;
-        } else if (nt.kind === "number") {
-          return {
-            "kind": "number",
-            "domain": [
-              Math.min(ot.domain[0], nt.domain[0]),
-              Math.max(ot.domain[1], nt.domain[1])
-            ]
-          };
         } else { // can't combine
           return { "kind": "unknown" };
         }
       } else if (ot.kind === "string") {
-        if (nt.kind === "undefined" || nt.kind === "null") { // subsume
+        if (
+          nt.kind === "undefined"
+       || nt.kind === "null"
+       || nt.kind === "string"
+        ) { // subsume (or compatible)
           return ot;
-        } else if (nt.kind === "string") {
-          return {
-            "kind": "string",
-            "domain": new Set([...ot.domain, ...nt.domain])
-          };
         } else { // can't combine
           return { "kind": "unknown" };
         }
@@ -302,9 +291,6 @@ define(["d3", "./utils"], function (d3, utils) {
   // Returns an array of all possible indexes for the given type. Each index is
   // a tuple of keys to be applied to a data item to get a value out. The given
   // name is used as the initial index in this array.
-  //
-  // The returned indices are each paired with a domain when that information
-  // is available, or else with undefined.
   function property_indices(name, type) {
     var options = [];
     if (type.kind === "map") {
@@ -315,8 +301,7 @@ define(["d3", "./utils"], function (d3, utils) {
           for (var j = 0; j < sub_indices.length; ++j) {
             var si = sub_indices[j];
             var keys = si[0];
-            var domain = si[1];
-            options.push([ [ name ].concat(keys), domain ]);
+            options.push([ name ].concat(keys));
           }
         }
       }
@@ -337,14 +322,13 @@ define(["d3", "./utils"], function (d3, utils) {
         for (var j = 0; j < sub_indices.length; ++j) {
           var si = sub_indices[j];
           var keys = si[0];
-          var domain = si[1];
-          options.push([ [name, i].concat(keys.slice(1)), domain ]);
+          options.push([name, i].concat(keys.slice(1)));
         }
       }
     } else if (type.kind === "number" || type.kind === "string") {
-      options.push([ [ name ], type.domain ]);
+      options.push([ name ]);
     } else {
-      options.push([ [ name ], undefined ]);
+      options.push([ name ]);
     }
     return options;
   }
@@ -363,8 +347,8 @@ define(["d3", "./utils"], function (d3, utils) {
     return result;
   }
 
-  // Looks at the data (mostly just the first item) and returns a dictionary of
-  // detected properties. Each property is an object with the following fields:
+  // Looks at ALL the data and returns a dictionary of detected properties.
+  // Each property is an object with the following fields:
   //
   //   name
   //     The key for this property in each item.

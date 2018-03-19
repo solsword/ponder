@@ -413,7 +413,11 @@ function (d3, d3sc, utils, qt, viz, prp) {
   }
 
   function file_chosen() {
-    setTimeout(eventually_process_uploaded_file, 100, d3.select(this));
+    setTimeout(eventually_process_uploaded_file, 50, d3.select(this));
+  }
+
+  function pre_file_chosen() {
+    setTimeout(eventually_preprocess_uploaded_file, 50, d3.select(this));
   }
 
   function eventually_process_uploaded_file(element) {
@@ -428,6 +432,23 @@ function (d3, d3sc, utils, qt, viz, prp) {
         // TODO: Multiple formats?!?
         var json = JSON.parse(file_text);
         populate_data(json);
+      };
+      fr.readAsText(first);
+    }
+  }
+
+  function eventually_preprocess_uploaded_file(element) {
+    var files = element.node().files;
+    if (files === null || files === undefined || files.length < 1) {
+      setTimeout(eventually_preprocess_uploaded_file, THUNK_MS, element);
+    } else {
+      var first = files[0];
+      var fr = new FileReader();
+      fr.onload = function (e) {
+        var file_text = e.target.result;
+        // TODO: Multiple formats?!?
+        var json = JSON.parse(file_text);
+        preprocess_data(json);
       };
       fr.readAsText(first);
     }
@@ -641,6 +662,30 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
     // Update the right window using the starting lens
     update_right_window();
+  }
+
+  function preprocess_data(data) {
+    PROPERTIES = prp.assess_properties(DATA);
+    var indices = prp.all_indices(PROPERTIES);
+
+    var aliases = {};
+
+    var glosses = {};
+
+    var domains = {};
+
+    var model = 
+
+    var columns = 
+
+    var result = {
+      "aliases": aliases,
+      "glosses": glosses,
+      "domains": domains,
+      "model": model,
+      "columns": columns,
+      "records": records,
+    }
   }
 
   // Updates the ranges of the left-hand plot
@@ -906,6 +951,21 @@ function (d3, d3sc, utils, qt, viz, prp) {
     d3.select("#left_y_select").on("change", left_y_selected);
 
     d3.select("#left_label_select").on("change", left_label_selected);
+  }
+
+  // Alternate main for pre.html preprocessing page.
+  function handle_preprocessing() {
+    // controls:
+    d3.select("#data_file")
+      .on("change", pre_file_chosen)
+      .on(
+        "click touchstart",
+        function () { d3.select(this).attr("value", ""); }
+      );
+
+    d3.select("#download").on("click touchstart", initiate_download)
+
+    /* TODO: Select-all on click in textarea?
   }
 
   return {

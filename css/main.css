@@ -48,6 +48,14 @@ body {
   background: #fff;
 }
 
+.panel {
+  text-align: left;
+  width: 90%;
+  margin: 8pt 4% 8pt 4%;
+  padding: 8pt;
+  background: #fff;
+}
+
 .controls_row {
   margin-bottom: 4pt;
 }
@@ -97,3 +105,10 @@ body {
   stroke: none;
   fill: #000;
 }
+
+/* pre.html elements */
+
+#output_bin {
+  width: 100%;
+}
+
