@@ -3,11 +3,13 @@ define(
   "d3",
   "d3-scale-chromatic",
   "./utils",
+  "./dataset",
+  "./view",
   "./quadtree",
   "./viz",
   "./properties"
 ],
-function (d3, d3sc, utils, qt, viz, prp) {
+function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
   /*
    * Module variables:
    */
@@ -89,8 +91,8 @@ function (d3, d3sc, utils, qt, viz, prp) {
 
   // Color transforms
   var LEFT_COLOR_SCALE;
-  var LEFT_START_COLOR = d3.select("#left_start_color").attr("value");
-  var LEFT_END_COLOR = d3.select("#left_end_color").attr("value");
+  var LEFT_START_COLOR;
+  var LEFT_END_COLOR;
   var LEFT_GRADIENT = undefined;
   var RIGHT_COLOR_SCALE;
   var RIGHT_START_COLOR = d3.rgb(193, 201, 248);
@@ -417,6 +419,15 @@ function (d3, d3sc, utils, qt, viz, prp) {
   }
 
   function pre_file_chosen() {
+    d3.select("#export_button").attr("disabled", true);
+    d3.select("#download_button").attr("disabled", true);
+    d3.select("#download_link").attr("href", "");
+    d3.select("#names_table")
+      .style("display", "none")
+      .selectAll("tbody>tr").remove();
+    d3.select("#output_bin")
+      .attr("disabled", true)
+      .text("");
     setTimeout(eventually_preprocess_uploaded_file, 50, d3.select(this));
   }
 
@@ -574,12 +585,51 @@ function (d3, d3sc, utils, qt, viz, prp) {
     update_left_window();
   }
 
+  function set_names(dataset) {
+    var np = d3.select("#names_panel");
+    var nrows = np.select("table>tbody>tr");
+    nrows.each(function (d) {
+      var row = d3.select(this);
+      var ai = row.select(".alias_input");
+      var skey = ai.attr("id").slice(5);
+      var sval = ai.attr("value");
+      if (sval != undefined && sval != "") {
+        dataset.aliases[skey] = sval;
+      }
+    })
+    
+    var pkg = JSON.stringify(dataset);
+
+    d3.select("#output_bin")
+      .attr("disabled", null)
+      .text(pkg)
+      .on("click touchstart", function () { this.select(); });
+
+    d3.select("#download_button")
+      .attr("disabled", null)
+      .on(
+        "mousedown touchstart",
+        function () {
+          var link = d3.select("#download_link");
+          link.attr(
+            "href",
+            "data:text/json;charset=utf-8," + encodeURIComponent(pkg)
+          )
+          .attr("download", "data.json");
+          // TODO: Use original name?
+        }
+      );
+  }
+
   /*
    * Setup functions
    */
 
   // Called after data is loaded
   function populate_data(data) {
+    LEFT_START_COLOR = d3.select("#left_start_color").attr("value");
+    LEFT_END_COLOR = d3.select("#left_end_color").attr("value");
+
     resize();
 
     // Set global
@@ -665,27 +715,43 @@ function (d3, d3sc, utils, qt, viz, prp) {
   }
 
   function preprocess_data(data) {
-    PROPERTIES = prp.assess_properties(DATA);
-    var indices = prp.all_indices(PROPERTIES);
+    var dataset = ds.preprocess_data(data);
 
-    var aliases = {};
+    var np = d3.select("#names_panel");
+    var ntb = np.select("table>tbody");
+    ntb.selectAll("tr").exit().remove();
+    var newrow = ntb.selectAll("tr")
+        .data(dataset.indices)
+      .enter().append("tr");
+    newrow.append("td")
+      .attr("class", "attr_index")
+      .text(d => prp.index__string(d));
+    newrow.append("td")
+      .attr("class", "attr_type")
+      .text(d => prp.format_type(ds.get_type(dataset, d)));
+    newrow.append("td")
+      .attr("class", "attr_alias")
+      .append("input")
+        .attr("type", "text")
+        .attr("class", "alias_input")
+        .attr("id", d=> "alias" + prp.index__string(d))
+        .attr("value",
+          function(d) {
+            let si = prp.index__string(d);
+            if (dataset.aliases.hasOwnProperty(si)) {
+              return dataset.aliases[si];
+            } else {
+              return "";
+            }
+          }
+        );
 
-    var glosses = {};
+    np.select("#names_table").style("display", "table");
+    np.select("#export_button")
+      .attr("disabled", null)
+      .on("click touchstart", function () { set_names(dataset); });
 
-    var domains = {};
-
-    var model = 
-
-    var columns = 
-
-    var result = {
-      "aliases": aliases,
-      "glosses": glosses,
-      "domains": domains,
-      "model": model,
-      "columns": columns,
-      "records": records,
-    }
+    // np.select("#alias" + prp.index__string(ind))
   }
 
   // Updates the ranges of the left-hand plot
@@ -963,12 +1029,16 @@ function (d3, d3sc, utils, qt, viz, prp) {
         function () { d3.select(this).attr("value", ""); }
       );
 
-    d3.select("#download").on("click touchstart", initiate_download)
+    // TODO: Select-all on click in textarea?
+  }
 
-    /* TODO: Select-all on click in textarea?
+  function initiate_download() {
+    // TOOD: HERE
+    console.log("DOWN");
   }
 
   return {
     "do_viz": do_viz,
+    "handle_preprocessing": handle_preprocessing,
   };
 });

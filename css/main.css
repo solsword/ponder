@@ -18,6 +18,40 @@ body {
   text-align: center;
 }
 
+a {
+  color: #000;
+}
+
+/* TODO: Make this work T_T */
+a, a:visited {
+  color: #68f;
+  text-decoration: none;
+}
+
+a:active {
+  color: #8df;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+thead>tr {
+  background-color: #ddd;
+}
+
+tr:nth-child(even) {
+  background-color: #eee;
+}
+
+tr:hover {
+  background-color: #ccc;
+}
+
+th, td {
+  padding: 6pt;
+}
+
 /* Active elements */
 
 .windows {
@@ -112,3 +146,7 @@ body {
   width: 100%;
 }
 
+#names_scroll_container {
+  max-height: 36ex;
+  overflow-y: scroll;
+}

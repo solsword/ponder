@@ -24,11 +24,30 @@ define(["d3", "./utils"], function (d3, utils) {
     }
   }
 
+  // Type -> string conversion
+  function format_type(t) {
+    if (t.kind == "tensor") {
+      let dims = "";
+      for (let i = 0; i < t.dimensions.length; ++i) {
+        dims += t.dimensions[i];
+        if (i < t.dimensions.length - 1) {
+          dims += "×";
+        }
+      }
+      return format_type(t.value_type) + "[" + dims + "]";
+    } else {
+      return t.kind
+    }
+  }
+
   // Returns a formatter function for values of the given type.
   function formatter_for_type(typ) {
-    if (typ == "number") {
+    if (typ.kind === "number") {
       return format_number;
-    } else if (Array.isArray(typ)) { // compound types
+    } else if (typ.kind === "tensor") { // tensors
+      // TODO: HERE
+      return function (v) { return "" + v; };
+    } else if (typ.kind === "map") { // maps
       // TODO: HERE
       return function (v) { return "" + v; };
     } else { // anything else:
@@ -45,46 +64,52 @@ define(["d3", "./utils"], function (d3, utils) {
   //       unknown
   //       undefined
   //       null
-  //       object
   //       number
   //       string
   //       tensor
   //       map
   //
   //   value_type
-  //     For "tensor" values, the type of each value
+  //     For "tensor" values, the common type for all values. May be abstract
+  //     (like "unknown" if there's a mix of strings and numbers), but
+  //     "subtypes" will list individual types for each item.
   //
   //   dimensions
-  //     For "tensor" values, an array of dimension extents
+  //     For "tensor" values, an array of dimension extents.
   //
   //   subtypes
-  //     For "map" values, a map from keys to field subtypes
+  //     For "map" values, a map from keys to field subtypes. For "tensor
+  //     values, an array of individual subtypes.
   //
   function assess_type(value) {
     if (Array.isArray(value)) {
       var dimension = value.length;
-      // compute subtype
-      var subtype;
-      if (dimension > 0) {
-        subtype = assess_type(value[0]);
-      } else {
-        subtype = { "kind": "undefined" };
+      // compute subtypes
+      var subtypes = [];
+      for (var i = 0; i < dimension; ++i) {
+        subtypes.push(assess_type(value[i]));
+      }
+      var joint_subtype = undefined;
+      if (subtypes.length > 0) {
+        joint_subtype = subtypes[0];
       }
       for (var i = 1; i < dimension; ++i) {
-        subtype = combined_type(subtype, assess_type(value[i]));
+        joint_subtype = combined_type(joint_subtype, subtypes[i]);
       }
 
       // merge tensor subtype dimensions to flatten tensor types:
-      if (subtype.kind === "tensor") {
+      if (joint_subtype.kind === "tensor") {
         return {
           "kind": "tensor",
-          "value_type": subtype.value_type,
-          "dimensions": [dimension].concat(subtype.dimensions)
+          "value_type": joint_subtype.value_type,
+          "subtypes": subtypes,
+          "dimensions": [dimension].concat(joint_subtype.dimensions)
         }
       } else { // or just return 1D tensor:
         return {
           "kind": "tensor",
-          "value_type": subtype,
+          "value_type": joint_subtype,
+          "subtypes": subtypes,
           "dimensions": [ dimension ],
         };
       }
@@ -93,18 +118,12 @@ define(["d3", "./utils"], function (d3, utils) {
         return { "kind": "null" };
       }
       var subtypes = {};
-      var anykeys = false;
       for (var k in value) {
         if (value.hasOwnProperty(k)) {
           subtypes[k] = assess_type(value[k]);
-          anykeys = true;
         }
       }
-      if (anykeys) {
-        return { "kind": "map", "subtypes": subtypes };
-      } else {
-        return { "kind": "object" };
-      }
+      return { "kind": "map", "subtypes": subtypes };
     } else if (typeof value === "string") {
       return { "kind": "string" };
     } else if (typeof value === "number") {
@@ -152,16 +171,10 @@ define(["d3", "./utils"], function (d3, utils) {
         } else { // can't combine
           return { "kind": "unknown" };
         }
-      } else if (ot.kind === "object") {
-        if (nt.kind === "undefined" || nt.kind === "null") {
-          return ot;
-        } else {
-          return { "kind": "unknown" };
-        }
       } else if (ot.kind === "map") {
         if (nt.kind === "undefined" || nt.kind === "null") {
           return ot;
-        } else if (Array.isArray(nt) && nt[0] == "map") { // combine subtypes!
+        } else if (nt.kind === "map") { // combine subtypes!
           var subtypes = ot.subtypes;
           var nst = nt.subtypes;
           var cst = {};
@@ -188,13 +201,20 @@ define(["d3", "./utils"], function (d3, utils) {
           return ot;
         } else {
           if (utils.is_equal(ot.dimensions, nt.dimensions)) {
+            cst = [];
+            for (let i = 0; i < ot.subtypes.length; ++i) {
+              // (we know length is equal because dimensions are equal)
+              // TODO: Worry about non-square tensors?
+              cst.push(combined_type(ot.subtypes[i], nt.subtypes[i]));
+            }
             return {
               "kind": "tensor",
               "dimensions": ot.dimensions,
-              "value_type": combined_type(ot.value_type, nt.value_type)
+              "value_type": combined_type(ot.value_type, nt.value_type),
+              "subtypes": cst,
             };
-          // TODO: Tensors of different dimensions subsuming each other?
           } else {
+            // TODO: Tensors of different dimensions subsuming each other?
             return { "kind": "unknown" };
           }
         }
@@ -209,14 +229,28 @@ define(["d3", "./utils"], function (d3, utils) {
    * Core functions
    */
 
+  // Turns fields into a mapping from field names to indices
+  function fmap(fields) {
+    var result = {};
+    for (let i = 0; i < fields.length; ++i) {
+      result[fields[i]] = i;
+    }
+    return result;
+  }
+
   // Uses an index (of the kind returned by property_indices) to retrieve a
-  // value from an item.
-  function get_value(item, index) {
-    if (index == undefined) {
+  // value from a record. Also requires a field mapping (see fmap, above).
+  function get_value(fmap, record, index) {
+    if (index === undefined) {
       return undefined;
     }
-    var val = item;
-    for (var i = 0; i < index.length; ++i) {
+    // Set i to index the
+    var idx = fmap[index[0]];
+    if (idx === undefined) {
+      return undefined; // invalid field!
+    }
+    var val = record[idx];
+    for (var i = 1; i < index.length; ++i) {
       try {
         val = val[index[i]];
       } catch (error) {
@@ -224,6 +258,31 @@ define(["d3", "./utils"], function (d3, utils) {
       }
     }
     return val;
+  }
+
+  // Retrieves the type of the item at the given index from a types map.
+  function get_type(types, index) {
+    if (index == undefined) {
+      return { "kind": "unknown" };
+    }
+    var result = types[index[0]];
+    for (var i = 1; i < index.length; ++i) {
+      try {
+        result = result.subtypes[index[i]];
+      } catch (error) {
+        return { "kind": "unknown" };
+      }
+    }
+    return result;
+  }
+
+  // Retrieves the domain of the item at the given index from a domains map.
+  function get_domain(domains, index) {
+    if (index == undefined) {
+      return undefined;
+    }
+    var key = index__string(index);
+    return domains[key];
   }
 
   // Converts an index into a human-readable string.
@@ -292,7 +351,7 @@ define(["d3", "./utils"], function (d3, utils) {
   // a tuple of keys to be applied to a data item to get a value out. The given
   // name is used as the initial index in this array.
   function property_indices(name, type) {
-    var options = [];
+    var options = [ [ name ] ];
     if (type.kind === "map") {
       var subtypes = type.subtypes;
       for (var k in subtypes) {
@@ -300,8 +359,7 @@ define(["d3", "./utils"], function (d3, utils) {
           var sub_indices = property_indices(k, subtypes[k]);
           for (var j = 0; j < sub_indices.length; ++j) {
             var si = sub_indices[j];
-            var keys = si[0];
-            options.push([ name ].concat(keys));
+            options.push([ name ].concat(si));
           }
         }
       }
@@ -321,15 +379,10 @@ define(["d3", "./utils"], function (d3, utils) {
       for (var i = 0; i < type.dimensions[0]; ++i) {
         for (var j = 0; j < sub_indices.length; ++j) {
           var si = sub_indices[j];
-          var keys = si[0];
-          options.push([name, i].concat(keys.slice(1)));
+          options.push([name, i].concat(si.slice(1)));
         }
       }
-    } else if (type.kind === "number" || type.kind === "string") {
-      options.push([ name ]);
-    } else {
-      options.push([ name ]);
-    }
+    } // otherwise we're already done
     return options;
   }
 
@@ -340,51 +393,97 @@ define(["d3", "./utils"], function (d3, utils) {
     var result = [];
     for (var k in properties) {
       if (properties.hasOwnProperty(k)) {
-        var prp = properties[k];
-        result = result.concat(property_indices(prp.name, prp.type));
+        var typ = properties[k];
+        result = result.concat(property_indices(k, typ));
       }
     }
     return result;
   }
 
-  // Looks at ALL the data and returns a dictionary of detected properties.
-  // Each property is an object with the following fields:
-  //
-  //   name
-  //     The key for this property in each item.
-  //   type
-  //     The type of the property. May be a compound type.
-  //
-  function assess_properties(data) {
+  // Looks at ALL the records and returns a dictionary of detected properties.
+  // Each entry maps a field name to the type of that field (see assess_type).
+  function assess_properties(fields, records) {
     var properties = {};
-    // TODO: This is slow!!!
-    // Allow properties input separately?
-    // Do this in a web worker asynchronously?
-    for (var i = 0; i < data.length; ++i) {
-      var d = data[i];
-      // TODO: Worry about attribute ordering here?
-      for (var k in d) {
-        if (d.hasOwnProperty(k)) {
-          var prp;
-          if (properties.hasOwnProperty(k)) {
-            prp = properties[k];
-            prp.type = combined_type(prp.type, assess_type(d[k]));
-          } else {
-            prp = {};
-            prp.name = k;
-            prp.type = assess_type(d[k]);
-            properties[k] = prp;
-          }
+    // TODO: This in a web worker asynchronously?
+    for (let i = 0; i < records.length; ++i) {
+      let d = records[i];
+      for (let j = 0; j < d.length; ++j) {
+        let k = fields[j];
+        let val = d[j];
+        let typ = assess_type(val);
+
+        if (properties.hasOwnProperty(k)) {
+          properties[k] = combined_type(properties[k], typ);
+        } else {
+          properties[k] = typ;
         }
       }
     }
     return properties;
   }
 
+  // Using the output of assess_properties, this function assesses the domain
+  // of each numeric or string property identified, finding min & max for
+  // numeric properties and value frequencies for string properties.
+  function assess_domains(fields, records, types) {
+    var result = {}
+    var indices = all_indices(types);
+    var fm = fmap(fields);
+
+    for (let i = 0; i < indices.length; ++i) {
+      let ind = indices[i];
+      let k = prp.index__string(ind);
+      let typ = prp.get_type(types, ind);
+      if (typ.kind === "number") {
+        for (let j = 0; j < records.length; ++j) {
+          let r = records[j];
+          let val = prp.get_value(fm, r, ind);
+          if (val === undefined) {
+            continue;
+          }
+          if (result.hasOwnProperty(k)) {
+            let d = result[k];
+            if (val < d[0]) {
+              result[k] = [val, d[1]];
+            } else if (val > d[1]) {
+              result[k] = [d[0], val];
+            }
+          } else {
+            result[k] = [ val, val ]
+          }
+        }
+      } else if (typ.kind === "string") {
+        for (let j = 0; j < records.length; ++j) {
+          let r = records[j];
+          let val = prp.get_value(fm, r, ind);
+          if (val === undefined) {
+            continue;
+          }
+          if (result.hasOwnProperty(k)) {
+            let d = result[k];
+            if (d.hasOwnProperty(val)) {
+              d[val] += 1;
+            } else {
+              d[val] = 1;
+            }
+          } else {
+            result[k] = { val: 1 };
+          }
+        }
+      } else {
+        result[k] = undefined;
+      }
+    }
+    return result;
+  }
+
   return {
     "format_number": format_number,
+    "format_type": format_type, 
     "formatter_for_type": formatter_for_type,
+    "fmap": fmap,
     "get_value": get_value,
+    "get_type": get_type,
     "assess_type": assess_type,
     "combined_type": combined_type,
     "index__string": index__string,
@@ -392,5 +491,6 @@ define(["d3", "./utils"], function (d3, utils) {
     "property_indices": property_indices,
     "all_indices": all_indices,
     "assess_properties": assess_properties,
+    "assess_domains": assess_domains,
   };
 });

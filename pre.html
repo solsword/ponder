@@ -15,15 +15,46 @@
       Data file:
       <input id="data_file" type="file" />
     </div>
-    Wait for output to appear below, add aliases and glosses as desired, and
-    then copy/paste or download the packed version.
+    <!-- TODO: Add ability to edit glosses! -->
+    Wait for output to appear below, add aliases as desired, and then
+    copy/paste or download the packed version.
+  </div>
+  <div id="names_panel" class="panel">
+    <div class="controls_row">
+      <input
+        id="export_button"
+        type="button"
+        value="Finalize Export"
+        disabled
+      />
+    </div>
+    <div id="names_scroll_container">
+      <table id="names_table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Alias</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
   </div>
   <div class="panel">
     <div class="controls_row">
-      <input id="download" type="button" style="display:none"/>
+      <a id="download_link">
+        <input
+          id="download_button"
+          type="button"
+          value="Download"
+          disabled
+        />
+      </a>
     </div>
     <div class="controls_row">
-      <textarea id="output_bin" rows=10></textarea>
+      <textarea id="output_bin" rows=10 disabled></textarea>
     </div>
   </div>
 </body>
