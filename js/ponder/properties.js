@@ -15,12 +15,14 @@ define(["d3", "./utils"], function (d3, utils) {
       } else {
         return n.toPrecision(4);
       }
-    } else {
+    } else if (Number.isFinite(n)) {
       if (n < 10000) {
         return n.toPrecision(4);
       } else {
         return n.toPrecision(3);
       }
+    } else {
+      return "NaN";
     }
   }
 
@@ -432,12 +434,12 @@ define(["d3", "./utils"], function (d3, utils) {
 
     for (let i = 0; i < indices.length; ++i) {
       let ind = indices[i];
-      let k = prp.index__string(ind);
-      let typ = prp.get_type(types, ind);
+      let k = index__string(ind);
+      let typ = get_type(types, ind);
       if (typ.kind === "number") {
         for (let j = 0; j < records.length; ++j) {
           let r = records[j];
-          let val = prp.get_value(fm, r, ind);
+          let val = get_value(fm, r, ind);
           if (val === undefined) {
             continue;
           }
@@ -455,7 +457,7 @@ define(["d3", "./utils"], function (d3, utils) {
       } else if (typ.kind === "string") {
         for (let j = 0; j < records.length; ++j) {
           let r = records[j];
-          let val = prp.get_value(fm, r, ind);
+          let val = get_value(fm, r, ind);
           if (val === undefined) {
             continue;
           }
@@ -467,7 +469,8 @@ define(["d3", "./utils"], function (d3, utils) {
               d[val] = 1;
             }
           } else {
-            result[k] = { val: 1 };
+            result[k] = {};
+            result[k][val] = 1;
           }
         }
       } else {

@@ -407,6 +407,28 @@ define(["./utils"], function (utils) {
     );
   }
 
+  // Returns a list of items within the given circle, defined by its center x,
+  // center y, and radius.
+  function in_circle(tree, cx, cy, r) {
+    var region = [[cx - r, cy - r], [cx + r, cy + r]]
+    var candidates = in_region(
+      tree,
+      region
+    );
+    var selected = [];
+    for (var i = 0; i < candidates.length; ++i) {
+      var it = candidates[i];
+      var x = tree.getx(it);
+      var y = tree.gety(it);
+      var dx = x - cx;
+      var dy = y - cy;
+      if (Math.sqrt(dx * dx + dy * dy) <= r) {
+        selected.push(it);
+      }
+    }
+    return selected;
+  }
+
   // Iterates over the given quadtree and returns an array of all items in the
   // tree. Order is based on quad tree quadrant ordering & order of insertion
   // within leaves.
@@ -656,6 +678,7 @@ define(["./utils"], function (utils) {
     "add_item": add_item,
     "nearest": nearest,
     "in_region": in_region,
+    "in_circle": in_circle,
     "all_items": all_items,
     "node_items": node_items,
     "visit": visit,

@@ -68,6 +68,12 @@ th, td {
   background: #fff;
 }
 
+#top_panel {
+  width: 40em;
+  margin: 8pt auto 0pt auto;
+  text-align: center;
+}
+
 #controls {
   margin: 0pt;
   padding: 0pt;
@@ -110,7 +116,10 @@ th, td {
 
 .gradient_demo {
   display: inline-block;
-  width: 6em;
+  position: relative;
+  top: 0.6ex;
+  width: 4em;
+  height: 1.8ex;
 }
 
 .gradient_option {

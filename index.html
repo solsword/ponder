@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Ponder</title>
+    <title>Ponder—Data Vizualizer</title>
 
     <link rel="stylesheet" type="text/css" href="css/main.css"/>
 
@@ -10,16 +10,18 @@
     <script data-main="js/main" src="js/require.js"></script>
   </head>
 <body>
+  <div id="top_panel" class="panel">
+    <div class="controls_row">
+      Data file (get from <a href="pre.html" target="_new">the preprocessor</a>):
+      <input id="data_file" type="file" />
+    </div>
+  </div>
   <div id="windows">
     <svg id="left_window" class="window"></svg>
     <svg id="right_window" class="window"></svg>
   </div>
   <div id="controls">
     <div id="left_controls" class="control_panel">
-      <div class="controls_row">
-        Data file (get from <a href="pre.html" target="_new">the preprocessor</a>):
-        <input id="data_file" type="file" />
-      </div>
       <div class="controls_row">
         <input id="show_density_checkbox" type="checkbox" checked>
         Show point approximation (instead of density)

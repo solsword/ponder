@@ -56,18 +56,21 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
   var LINES_PER_PAGE = 40;
   var SCROLL_FACTOR = 10; // pixels of scroll per 1% radius adjust
 
+  // Max # of values to show during preprocessing
+  var MAX_SHOW_VALUES = 6;
+
   // Margin inside SVG:
   var MARGIN = 30;
 
   // Padding in the domain (% of normal range)
   var DPAD = 0.05;
 
-  // The quadtree:
-  var QUADTREE;
-
   // Selections
   var HOVERED;
   var SELECTED;
+
+  // The current view for the left window
+  var LEFT_VIEW;
 
   // Scales
   var LEFT_X_SCALE;
@@ -644,56 +647,6 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
     // Update the selection
     update_selected();
 
-    // Reset left window:
-    LEFT_WINDOW.selectAll("*").remove();
-
-    // x-axis:
-    LEFT_WINDOW.append("g")
-      .attr("id", "left_x_axis")
-      .attr("class", "x axis")
-      .attr(
-        "transform",
-        "translate(" + MARGIN + ","
-      + (utils.get_height(LEFT_WINDOW) - MARGIN) + ")"
-      )
-      .call(d3.axisBottom(LEFT_X_SCALE))
-    .append("text")
-      .attr("class", "label")
-      .attr("x", utils.get_width(LEFT_WINDOW) - 2 * MARGIN)
-      .attr("y", -MARGIN/3)
-      .style("text-anchor", "end")
-      .text("X");
-
-    // y-axis
-    LEFT_WINDOW.append("g")
-      .attr("id", "left_y_axis")
-      .attr("class", "y axis")
-      .attr(
-        "transform",
-        "translate(" + MARGIN + "," + MARGIN + ")"
-      )
-      .call(d3.axisLeft(LEFT_Y_SCALE))
-    .append("text")
-      .attr("class", "label")
-      .attr("transform", "rotate(-90)")
-      .attr("y", MARGIN/3)
-      .attr("dy", ".71em")
-      .style("text-anchor", "end")
-      .text("Y");
-
-    LEFT_WINDOW.append("g")
-      .attr("id", "qt_density")
-      .attr("class", "density_plot")
-      .attr(
-        "transform",
-        "translate(" + MARGIN + "," + MARGIN + ")"
-      );
-
-    LEFT_WINDOW_READY = true;
-
-    // Heavy lifting for left window
-    update_left_window();
-
     // Reset right window:
     RIGHT_WINDOW.selectAll("*").remove();
 
@@ -715,43 +668,78 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
   }
 
   function preprocess_data(data) {
-    var dataset = ds.preprocess_data(data);
-
     var np = d3.select("#names_panel");
-    var ntb = np.select("table>tbody");
-    ntb.selectAll("tr").exit().remove();
-    var newrow = ntb.selectAll("tr")
-        .data(dataset.indices)
-      .enter().append("tr");
-    newrow.append("td")
-      .attr("class", "attr_index")
-      .text(d => prp.index__string(d));
-    newrow.append("td")
-      .attr("class", "attr_type")
-      .text(d => prp.format_type(ds.get_type(dataset, d)));
-    newrow.append("td")
-      .attr("class", "attr_alias")
-      .append("input")
-        .attr("type", "text")
-        .attr("class", "alias_input")
-        .attr("id", d=> "alias" + prp.index__string(d))
-        .attr("value",
-          function(d) {
+    np.select("#loading_message").style("display", "block");
+
+    window.setTimeout(function () {
+      var dataset = ds.preprocess_data(data);
+
+      var ntb = np.select("table>tbody");
+      ntb.selectAll("tr").exit().remove();
+      var newrow = ntb.selectAll("tr")
+          .data(dataset.indices)
+        .enter().append("tr");
+      newrow.append("td")
+        .attr("class", "attr_index")
+        .text(d => prp.index__string(d));
+      newrow.append("td")
+        .attr("class", "attr_type")
+        .text(d => prp.format_type(ds.get_type(dataset, d)));
+      newrow.append("td")
+        .attr("class", "attr_alias")
+        .append("input")
+          .attr("type", "text")
+          .attr("class", "alias_input")
+          .attr("id", d=> "alias" + prp.index__string(d))
+          .attr("value", function(d) {
             let si = prp.index__string(d);
             if (dataset.aliases.hasOwnProperty(si)) {
               return dataset.aliases[si];
             } else {
               return "";
             }
+          });
+      newrow.append("td")
+        .attr("class", "attr_domain")
+        .text(function (d) {
+          let si = prp.index__string(d);
+          if (dataset.domains.hasOwnProperty(si)) {
+            let dom = dataset.domains[si];
+            if (dom === undefined) {
+              return ""
+            } else if (Array.isArray(dom)) {
+              return (
+                "" + prp.format_number(dom[0]) + "–" + prp.format_number(dom[1])
+              );
+            } else {
+              var keys = Object.keys(dom);
+              var count = keys.length;
+              if (count <= MAX_SHOW_VALUES) {
+                var result = ""
+                for (let i = 0; i < count; ++i) {
+                  let k = keys[i];
+                  let c = dom[k];
+                  result += k + "×" + prp.format_number(c);
+                  if (i < count - 1) {
+                    result += ", ";
+                  }
+                }
+                return result;
+              } else {
+                return "<" + prp.format_number(count) + " values>";
+              }
+            }
+          } else {
+            return "";
           }
-        );
+        });
 
-    np.select("#names_table").style("display", "table");
-    np.select("#export_button")
-      .attr("disabled", null)
-      .on("click touchstart", function () { set_names(dataset); });
-
-    // np.select("#alias" + prp.index__string(ind))
+      np.select("#names_table").style("display", "table");
+      np.select("#loading_message").style("display", "none");
+      np.select("#export_button")
+        .attr("disabled", null)
+        .on("click touchstart", function () { set_names(dataset); });
+    }, 0);
   }
 
   // Updates the ranges of the left-hand plot
@@ -900,12 +888,6 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
     LEFT_CONTROLS = d3.select("#left_controls");
     RIGHT_CONTROLS = d3.select("#right_controls");
 
-    LEFT_X_SCALE = d3.scaleLinear().range(
-      [0, utils.get_width(LEFT_WINDOW) - 2*MARGIN]
-    );
-    LEFT_Y_SCALE = d3.scaleLinear().range(
-      [utils.get_height(LEFT_WINDOW) - 2*MARGIN, 0]
-    );
     RIGHT_X_SCALE = d3.scaleLinear().range(
       [0, utils.get_width(RIGHT_WINDOW) - 2*MARGIN]
     );
@@ -913,19 +895,7 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
       [utils.get_height(RIGHT_WINDOW) - 2*MARGIN, 0]
     );
 
-    /* TODO: Something about this mess
-    // Max 12 colors
-    DISC_COLOR_SCALE = d3.scaleOrdinal(d3.schemePaired);
-    //CONT_COLOR_SCALE = d3.interpolateViridis;
-    //CONT_COLOR_SCALE = d3.interpolateBlues; // missing?!?
-    CONT_COLOR_SCALE = function(t) {
-      // TODO: Try a log-transform here? (or for some uses?)
-      //return d3.interpolateInferno(1-t);
-      //return d3.interpolateInferno(t);
-      return d3.interpolate(SCALE_LIGHT_END, SCALE_DARK_END)(t);
-      //return d3.interpolate(SCALE_DARK_END, SCALE_LIGHT_END)(t);
-    }
-    */
+    // TODO: Get rid of these!
     LEFT_COLOR_SCALE = function(t) {
       return d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t);
     };
@@ -951,7 +921,7 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
       .attr("y", utils.get_height(LEFT_WINDOW)/2)
       .style("text-anchor", "middle")
       .attr("dominant-baseline", "middle")
-      .text("No data (choose a file to analyze below)");
+      .text("No data (choose a file to analyze above)");
 
     // bind events:
     d3.select(window)
@@ -969,6 +939,7 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
         function () { d3.select(this).attr("value", ""); }
       );
 
+    // TODO: Move these to view code!
     d3.select("#show_density_checkbox").on("change", density_box_checked);
 
     d3.select("#left_color_select").on("change", left_cattr_selected);
