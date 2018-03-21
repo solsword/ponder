@@ -489,6 +489,7 @@ define(["d3", "./utils"], function (d3, utils) {
     "get_type": get_type,
     "assess_type": assess_type,
     "combined_type": combined_type,
+    "get_domain": get_domain,
     "index__string": index__string,
     "string__index": string__index,
     "property_indices": property_indices,

@@ -304,7 +304,7 @@ define(["./utils"], function (utils) {
         }
       }
     } else { // else base case: find all items w/in region
-      for (var i = 0; i < node.items.length; ++i) {
+      for (var i = 0; i < node.count; ++i) {
         var item = node.items[i];
         var ix = getx(item);
         var iy = gety(item);
@@ -565,10 +565,10 @@ define(["./utils"], function (utils) {
           cx /= node.count;
           cy /= node.count;
           centroids["" + extent] = [cx, cy];
-        } else {
+        } else if (node.count > 0) {
           var cx = 0;
           var cy = 0;
-          for (var i = 0; i < node.items.length; ++i) {
+          for (var i = 0; i < node.count; ++i) {
             var it = node.items[i];
             cx += tree.getx(it);
             cy += tree.gety(it);
@@ -576,7 +576,7 @@ define(["./utils"], function (utils) {
           cx /= node.count;
           cy /= node.count;
           centroids["" + extent] = [cx, cy];
-        }
+        } // else don't add a centroid at all
       },
       true // post-order traversal
     );

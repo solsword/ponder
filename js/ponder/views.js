@@ -1,13 +1,18 @@
 define(
-["d3", "./utils", "./quadtree", "./dataset", "./properties", "./viz"],
-function (d3, utils, qt, ds, prp, viz) {
+[
+  "d3",
+  "d3-scale-chromatic",
+  "./utils",
+  "./quadtree",
+  "./dataset",
+  "./properties",
+  "./viz"
+],
+function (d3, d3sc, utils, qt, ds, prp, viz) {
 
   //////////////////////
   // Shared constants //
   //////////////////////
-
-  // Default margin value (fraction of total frame reserved)
-  var DEFAULT_MARGIN = 0.04;
 
   // Padding in the domain (% of normal range)
   var DOMAIN_PADDING = 0.03;
@@ -166,7 +171,7 @@ function (d3, utils, qt, ds, prp, viz) {
   }
 
   ColorWidget.prototype.put_controls = function (node) {
-    var row = element.append("div").attr("class", "controls_row");
+    var row = node.append("div").attr("class", "controls_row");
     row.text("Color scale: ");
     // custom option
     var cs_select = row.append("select");
@@ -293,20 +298,15 @@ function (d3, utils, qt, ds, prp, viz) {
   // Minimum radius of the lens in SVG units (~= screen pixels)
   var MIN_LENS_RADIUS = 0.5;
 
-  // Creates a new view of the given dataset. The margin argument is optional
-  // and specifies a fraction of the frame that should be used for the margin
-  // when the view is drawn. DEFAULT_MARGIN will be used if an explicit margin
-  // isn't given.
+  // Creates a new lens view of the given dataset.
   //
   // Note that after creating a view, it must be bound to a frame before it can
   // be drawn or its controls can be used, and if the x_index or y_index
   // weren't given, they need to be set first.
-  function LensView(id, dataset, x_index, y_index, margin) {
-    if (margin === undefined) { margin = DEFAULT_MARGIN; }
+  function LensView(id, dataset, x_index, y_index) {
     this.id = id;
     this.data = dataset;
     this.show_density = false;
-    this.margin = margin;
     this.selected = [];
     this.selection_listeners = [];
 
@@ -315,7 +315,7 @@ function (d3, utils, qt, ds, prp, viz) {
     this.x_selector = new SelectWidget(
       "X-axis: ",
       inames,
-      inames[0],
+      ds.get_name(this.data, x_index),
       function (iname) {
         this.set_x_axis(iname);
         this.rebind();
@@ -326,7 +326,7 @@ function (d3, utils, qt, ds, prp, viz) {
     this.y_selector = new SelectWidget(
       "Y-axis: ",
       inames,
-      inames[1],
+      ds.get_name(this.data, y_index),
       function (iname) {
         this.set_y_axis(iname);
         this.rebind();
@@ -367,7 +367,7 @@ function (d3, utils, qt, ds, prp, viz) {
           this.set_labels(iname);
         }
         this.draw();
-      });
+      }
     );
 
     this.set_x_axis(x_index);
@@ -380,8 +380,9 @@ function (d3, utils, qt, ds, prp, viz) {
   // is called. If the frame changes size, this function can safely be called
   // again to update the view (and then draw should also be called again).
   // If not given, the min_resolution parameter (which controls the minimum
-  // size of a quadtree cell in SVG units ~= screen pixels) will use
-  // DEFAULT_RESOLUTION.
+  // size of a quadtree cell in SVG units ~= screen pixels) will use the
+  // existing resolution if one has already been specified or
+  // DEFAULT_RESOLUTION if not.
   LensView.prototype.bind_frame = function(frame, min_resolution) {
     this.frame = frame;
 
@@ -391,13 +392,13 @@ function (d3, utils, qt, ds, prp, viz) {
     var xr = this.x_domain[1] - this.x_domain[0];
     var yr = this.y_domain[1] - this.y_domain[0];
     this.x_scale = d3.scaleLinear()
-      .range([0, fw - 2*this.margin*fw])
+      .range([0, fw])
       .domain([
           this.x_domain[0] - DOMAIN_PADDING * xr,
           this.x_domain[1] + DOMAIN_PADDING * xr
       ]);
     this.y_scale = d3.scaleLinear()
-      .range([fh - 2*this.margin*fh, 0])
+      .range([fh, 0])
       .domain([
         this.y_domain[0] - DOMAIN_PADDING * yr,
         this.y_domain[1] + DOMAIN_PADDING * yr
@@ -408,12 +409,18 @@ function (d3, utils, qt, ds, prp, viz) {
 
     // build a quadtree in the view space:
     var min_side = min_resolution;
-    if (min_side === undefined) { min_side = DEFAULT_RESOLUTION; }
+    if (min_side === undefined) {
+      if (this.resolution != undefined) {
+        min_side = this.resolution;
+      } else {
+        min_side = DEFAULT_RESOLUTION;
+      }
+    }
     this.resolution = min_side;
 
     this.tree = qt.build_quadtree(
       this.data,
-      [ 0, 0, fw - 2*this.margin*fw, fh - 2*this.margin*fh ],
+      [ 0, 0, fw, fh ],
       this.view_x,
       this.view_y,
       min_side
@@ -477,13 +484,13 @@ function (d3, utils, qt, ds, prp, viz) {
       .attr("class", "x axis")
       .attr(
         "transform",
-        "translate(" + this.margin + "," + (fh - this.margin) + ")"
+        "translate(0," + fh + ")"
       )
       .call(d3.axisBottom(this.x_scale))
     .append("text")
       .attr("class", "label")
-      .attr("x", fw - 2 * this.margin)
-      .attr("y", -this.margin/3)
+      .attr("x", fw * 0.98)
+      .attr("y", -fh * 0.02)
       .style("text-anchor", "end")
       .text(ds.get_name(this.data, this.x_index));
 
@@ -491,26 +498,18 @@ function (d3, utils, qt, ds, prp, viz) {
     this.frame.append("g")
       .attr("id", this.id + "_y_axis")
       .attr("class", "y axis")
-      .attr(
-        "transform",
-        "translate(" + this.margin + "," + this.margin + ")"
-      )
       .call(d3.axisLeft(this.y_scale))
     .append("text")
       .attr("class", "label")
       .attr("transform", "rotate(-90)")
-      .attr("y", this.margin/3)
+      .attr("y", fw * 0.02)
       .attr("dy", ".71em")
       .style("text-anchor", "end")
       .text(ds.get_name(this.data, this.y_index));
 
     var dplot = this.frame.append("g")
       .attr("id", "qt_density")
-      .attr("class", "density_plot")
-      .attr(
-        "transform",
-        "translate(" + this.margin + "," + this.margin + ")"
-      );
+      .attr("class", "density_plot");
 
     viz.draw_quadtree(
       dplot,
@@ -545,8 +544,8 @@ function (d3, utils, qt, ds, prp, viz) {
       var coords = d3.mouse(this);
 
       if (this.shadow.node != undefined) {
-        this.shadow.x = coords[0] - this.margin;
-        this.shadow.y = coords[1] - this.margin;
+        this.shadow.x = coords[0];
+        this.shadow.y = coords[1];
         this.shadow.node.attr("cx", this.shadow.x);
         this.shadow.node.attr("cy", this.shadow.y);
       }
@@ -577,7 +576,7 @@ function (d3, utils, qt, ds, prp, viz) {
         }
         SHADOW.attr("r", this.shadow.r);
       }
-    }
+    });
 
     this.frame.on("click touchstart", function () {
       this.lens.x = this.shadow.x;
@@ -738,8 +737,8 @@ function (d3, utils, qt, ds, prp, viz) {
     this.x_index = x_index;
     this.x_type = ds.get_type(this.data, x_index);
 
-    var nx = numerical_transform(dataset, x_index);
-    this.x_domian = nx.domain;
+    var nx = numerical_transform(this.data, x_index);
+    this.x_domain = nx.domain;
     this.raw_x = nx.getter;
   }
 
@@ -751,8 +750,8 @@ function (d3, utils, qt, ds, prp, viz) {
     this.y_index = y_index;
     this.y_type = ds.get_type(this.data, y_index);
 
-    var ny = numerical_transform(dataset, y_index);
-    this.y_domian = ny.domain;
+    var ny = numerical_transform(this.data, y_index);
+    this.y_domain = ny.domain;
     this.raw_y = ny.getter;
   }
 
@@ -790,8 +789,6 @@ function (d3, utils, qt, ds, prp, viz) {
   // will be computed across the given records, and that will form the
   // histogram.
   //
-  // If margin isn't given, it will default to DEFAULT_MARGIN.
-  //
   // If bar_limit isn't given, it will default to DEFAULT_BAR_LIMIT.
   function Histogram(
     id,
@@ -801,7 +798,6 @@ function (d3, utils, qt, ds, prp, viz) {
     normalize,
     bins,
     domain,
-    margin,
     bar_limit
   ) {
     this.id = id;
@@ -809,8 +805,7 @@ function (d3, utils, qt, ds, prp, viz) {
     this.records = records;
     this.normalize = normalize;
     this.bins = bins;
-    this.margin = margin || DEFAULT_MARGIN;
-    this.bar_limit = bar_limit || DEFAULT_MARGIN;
+    this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
 
     // set up widgets:
     this.color_widget = new ColorWidget(
@@ -950,7 +945,8 @@ function (d3, utils, qt, ds, prp, viz) {
         }
       }
     } else {
-      console.error("Don't know how to make a histogram out of: " + ft);
+      console.error("Don't know how to make a histogram out of:")
+      console.error(ft);
       this.counts = undefined;
       return;
     }

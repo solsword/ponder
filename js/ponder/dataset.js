@@ -48,11 +48,11 @@ function (utils, prp) {
   // given only by their aliased names.
   function index_names(dataset) {
     var result = [];
-    for (let i = 0; i < dataset.all_indices.length; ++i) {
-      var idx = dataset.all_indices[i];
+    for (let i = 0; i < dataset.indices.length; ++i) {
+      var idx = dataset.indices[i];
       var si = prp.index__string(idx);
       if (dataset.aliases.hasOwnProperty(si)) {
-        result.push(aliases[si]);
+        result.push(dataset.aliases[si]);
       } else {
         result.push(si);
       }
@@ -146,6 +146,22 @@ function (utils, prp) {
     return bundle;
   }
 
+  // Checks whether a dataset has all of the necessary keys for full
+  // functionality (doesn't check values, however).
+  function is_complete(dataset) {
+    return (
+      dataset.hasOwnProperty("aliases")
+   && dataset.hasOwnProperty("glosses")
+   && dataset.hasOwnProperty("types")
+   && dataset.hasOwnProperty("domains")
+   && dataset.hasOwnProperty("imap")
+   && dataset.hasOwnProperty("indices")
+   && dataset.hasOwnProperty("fmap")
+   && dataset.hasOwnProperty("fields")
+   && dataset.hasOwnProperty("records")
+    );
+  }
+
   return {
     "get_name": get_name,
     "get_record": get_record,
@@ -153,7 +169,10 @@ function (utils, prp) {
     "get_type": get_type,
     "get_domain": get_domain,
     "all_indices": all_indices,
+    "lookup_index": lookup_index,
     "aliased_indices": aliased_indices,
+    "index_names": index_names,
     "preprocess_data": preprocess_data,
+    "is_complete": is_complete,
   };
 });
