@@ -266,17 +266,24 @@ define(["d3"], function (d3) {
   // Returns a CSS background property gradient value for the given color
   // interpolation function (or color array). n_stops is optional and defaults
   // to DEFAULT_GRADIENT_STOPS.
-  function css_gradient(direction, int_or_array, n_stops) {
+  //
+  // If the function/array value is given as undefined, just returns black, and
+  // if given as a string, just returns that string.
+  function css_gradient(direction, fcn_or_array, n_stops) {
     if (n_stops == undefined) {
       n_stops = DEFAULT_GRADIENT_STOPS;
     }
     var colors;
-    if (Array.isArray(int_or_array)) { // must be an interpolation function
-      colors = int_or_array;
-    } else {
+    if (fcn_or_array === undefined) {
+      return "black";
+    } else if (typeof fcn_or_array === "string") {
+      return fcn_or_array;
+    } else if (Array.isArray(fcn_or_array)) { // an array
+      colors = fcn_or_array;
+    } else { // must be an interpolation function
       colors = [];
       for (var i = 0; i <= n_stops; ++i) {
-        colors.push(int_or_array(i/n_stops));
+        colors.push(fcn_or_array(i/n_stops));
       }
     }
     var val = "linear-gradient(" + direction + ","
@@ -294,17 +301,24 @@ define(["d3"], function (d3) {
   // which uses hard stops to create a sequence of colors blocks with hard
   // edges instead of an actual gradient. n_stops is optional and defaults to
   // DEFAULT_GRADIENT_STOPS.
-  function css_scheme(direction, int_or_array, n_stops) {
+  //
+  // If the function/array value is given as undefined, just returns black, and
+  // if given as a string, just returns that string.
+  function css_scheme(direction, fcn_or_array, n_stops) {
     if (n_stops == undefined) {
       n_stops = DEFAULT_GRADIENT_STOPS;
     }
     var colors;
-    if (Array.isArray(int_or_array)) { // must be an interpolation function
-      colors = int_or_array;
-    } else {
+    if (fcn_or_array === undefined) {
+      return "black";
+    } else if (typeof fcn_or_array === "string") {
+      return fcn_or_array;
+    } else if (Array.isArray(fcn_or_array)) {
+      colors = fcn_or_array;
+    } else { // must be an interpolation function
       colors = [];
       for (var i = 0; i <= n_stops; ++i) {
-        colors.push(int_or_array(i/n_stops));
+        colors.push(fcn_or_array(i/n_stops));
       }
     }
     var val = "linear-gradient(" + direction + ","

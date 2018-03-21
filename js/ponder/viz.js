@@ -24,6 +24,7 @@ function (d3, utils, qt, prp) {
    * Data transformation functions
    */
 
+  // TODO: Get rid of this now that we have Histogram?
   // Given an array-of-values or map-of-values->counts field, creates bars for
   // a histogram showing the sum of each value. If 'just_tally' is given with a
   // map field, the map values are ignored and 1 unit is counted for each time
