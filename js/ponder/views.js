@@ -447,15 +447,17 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // controls for this view.
   LensView.prototype.put_controls = function(node) {
     node.selectAll("*").remove();
+    var the_view = this;
     var row = node.append("div").attr("class", "controls_row");
     row.append("input")
       .attr("type", "checkbox")
       .attr("checked", true)
       .on("change", function () {
-        this.show_density = !this.checked;
-        this.draw(); // redraw
+        the_view.show_density = !this.checked;
+        the_view.draw(); // redraw
       });
-    row.text("Show point approximation (instead of density)");
+    row.append("span")
+      .text("Show point approximation (instead of density)");
 
     this.x_selector.put_controls(node);
     this.y_selector.put_controls(node);
@@ -527,35 +529,58 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.lens.node = dplot.select("#lens_group").append("circle")
       .attr("id", this.id + "_lens")
+      .attr("class", "lens")
       .attr("cx", this.lens.x)
       .attr("cy", this.lens.y)
       .attr("r", this.lens.r)
       .attr("z-index", "10");
 
-    this.shadow.node = dplot.select("#shadow_group").append("circle")
+    this.shadow.node = dplot.select("#lens_group").append("circle")
       .attr("id", this.id + "_shadow")
+      .attr("class", "lens_shadow")
       .attr("cx", this.shadow.x)
       .attr("cy", this.shadow.y)
       .attr("r", this.shadow.r)
       .attr("z-index", "10");
 
     // Lens tracking:
-    this.frame.on("mousemove touchmove", function () {
-      var coords = d3.mouse(this);
+    var svg = this.frame.node();
+    while (svg.nodeName != "svg" && svg.parentNode) {
+      svg = svg.parentNode;
+    }
+    svg = d3.select(svg);
+    var the_view = this;
+    svg.on("mousemove touchmove", function () {
+      var coords = d3.mouse(the_view.frame.node());
 
-      if (this.shadow.node != undefined) {
-        this.shadow.x = coords[0];
-        this.shadow.y = coords[1];
-        this.shadow.node.attr("cx", this.shadow.x);
-        this.shadow.node.attr("cy", this.shadow.y);
+      if (the_view.shadow.node != undefined) {
+        the_view.shadow.x = coords[0];
+        the_view.shadow.y = coords[1];
+        the_view.shadow.node.attr("cx", the_view.shadow.x);
+        the_view.shadow.node.attr("cy", the_view.shadow.y);
       }
     });
 
-    this.frame.on("mousewheel", function () {
+    svg.on("click touchstart", function () {
+      the_view.lens.x = the_view.shadow.x;
+      the_view.lens.y = the_view.shadow.y;
+      the_view.lens.r = the_view.shadow.r;
+
+      if (the_view.lens.node != undefined) {
+        // Update the lens
+        the_view.lens.node.attr("cx", the_view.lens.x);
+        the_view.lens.node.attr("cy", the_view.lens.y);
+        the_view.lens.node.attr("r", the_view.lens.r);
+
+        the_view.update_selection();
+      }
+    });
+
+    svg.on("mousewheel", function () {
       var e = d3.event;
       e.preventDefault();
 
-      if (this.shadow.node != undefined) {
+      if (the_view.shadow.node != undefined) {
         // convert scroll units:
         var unit = e.deltaMode;
         var dx = e.deltaX;
@@ -570,26 +595,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         }
 
         // update shadow radius:
-        this.shadow.r *= (1 + 0.01 * dy / SCROLL_FACTOR);
-        if (this.shadow.r < MIN_LENS_RADIUS) {
-          this.shadow.r = MIN_LENS_RADIUS;
+        the_view.shadow.r *= (1 + 0.01 * dy / SCROLL_FACTOR);
+        if (the_view.shadow.r < MIN_LENS_RADIUS) {
+          the_view.shadow.r = MIN_LENS_RADIUS;
         }
-        SHADOW.attr("r", this.shadow.r);
-      }
-    });
-
-    this.frame.on("click touchstart", function () {
-      this.lens.x = this.shadow.x;
-      this.lens.y = this.shadow.y;
-      this.lens.r = this.shadow.r;
-
-      if (this.lens.node != undefined) {
-        // Update the lens
-        this.lens.node.attr("cx", this.lens.x);
-        this.lens.node.attr("cy", this.lens.y);
-        this.lens.node.attr("r", this.lens.r);
-
-        this.update_selection();
+        the_view.shadow.node.attr("r", the_view.shadow.r);
       }
     });
   }

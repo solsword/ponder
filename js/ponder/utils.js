@@ -33,10 +33,18 @@ define(["d3"], function (d3) {
   }
 
   function get_width(obj) {
+    if (obj.attr) {
+      var aw = get_n_attr(obj, "width");
+      if (aw) { return aw; }
+    }
     return get_bbox(obj).width;
   }
 
   function get_height(obj) {
+    if (obj.attr) {
+      var ah = get_n_attr(obj, "height");
+      if (ah) { return ah; }
+    }
     return get_bbox(obj).height;
   }
 

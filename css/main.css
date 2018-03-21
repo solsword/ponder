@@ -100,12 +100,12 @@ th, td {
   margin-bottom: 4pt;
 }
 
-#lens {
+.lens {
   fill: #99999922;
   stroke: #666;
 }
 
-#lens_shadow {
+.lens_shadow {
   fill: #aaaaaa22;
   stroke: #888;
 }
