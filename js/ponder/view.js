@@ -405,7 +405,6 @@ function (d3, utils, qt, ds, prp, viz) {
     dplot.append("g")
       .attr("id", "lens_group");
 
-    // TODO: Disentangle these!
     view.lens.node = dplot.select("#lens_group").append("circle")
       .attr("id", view.id + "_lens")
       .attr("cx", view.lens.x)
@@ -471,11 +470,27 @@ function (d3, utils, qt, ds, prp, viz) {
         view.lens.node.attr("r", view.lens.r);
 
         update_selection(view);
-
-        // TODO: How this?!?
-        update_right_window();
       }
     });
+  }
+
+  // Subscribe a callback to trigger on selection updates. Callbacks receive
+  // two arguments: an array of selected items, and the entire view object.
+  function subscribe_to_selection(view, callback) {
+    view.selection_listeners.push(callback);
+  }
+
+  // Cancel a callback
+  function cancel_subscription(view, callback) {
+    var i;
+    for (i = 0; i < view.selection_listeners.length; ++i) {
+      if (view[i] === callback) {
+        break;
+      }
+    }
+    if (i < view.selection_listeners.length) {
+      view.spilce(i,1);
+    }
   }
 
   // Updates the "selected" property of the view according to the current lens
@@ -490,6 +505,9 @@ function (d3, utils, qt, ds, prp, viz) {
         view.lens.y,
         view.lens.r
       );
+    }
+    for (let i = 0; i < view.selection_listeners.length; ++i) {
+      view.selection_listeners[i](view.selected, view);
     }
   }
 

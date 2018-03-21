@@ -896,9 +896,6 @@ function (d3, d3sc, utils, ds, vw, qt, viz, prp) {
     );
 
     // TODO: Get rid of these!
-    LEFT_COLOR_SCALE = function(t) {
-      return d3.interpolate(LEFT_START_COLOR, LEFT_END_COLOR)(t);
-    };
     RIGHT_COLOR_SCALE = function(t) {
       return d3.interpolate(RIGHT_START_COLOR, RIGHT_END_COLOR)(t);
     };
