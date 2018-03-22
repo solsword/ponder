@@ -23,6 +23,43 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   var SCROLL_FACTOR = 10; // pixels of scroll per 1% radius adjust
 
   //////////////////
+  // ToggleWidget //
+  //////////////////
+
+  // A check box followed by the given text.
+  // The callback will be called with either true or false whenever the box is
+  // toggled.
+  function ToggleWidget(
+    label,
+    default_on,
+    callback
+  ) {
+    this.label = label;
+    this.default_on = default_on;
+    this.callback = callback;
+  }
+
+  ToggleWidget.prototype.put_controls = function (node) {
+    var row = node.append("div").attr("class", "controls_row");
+    var the_widget = this;
+    var select = row.append("input")
+      .attr("type", "checkbox")
+      .on("change", function () {
+        if (the_widget.callback) {
+          the_widget.callback(this.checked);
+        }
+      });
+    if (this.default_on) {
+      select.attr("checked", true);
+    }
+    row.append("span")
+      .attr("class", "label")
+      .text(this.label);
+
+      // TODO: THIS? .attr("class", "spaced_inline");
+  }
+
+  //////////////////
   // SelectWidget //
   //////////////////
 
@@ -46,7 +83,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     row.text(this.label);
     var the_widget = this;
     var select = row.append("select")
-      .on("change", function () { // set new axis, re-bind, and re-draw
+      .on("change", function () {
         if (the_widget.callback) {
           the_widget.callback(utils.get_selected_value(this));
         }
@@ -180,12 +217,15 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     if (typeof this.color === "string") {
       return x => this.color;
     } else if (Array.isArray(this.color)) {
+      var the_widget = this;
       return function (t) {
         var i = Math.floor(t);
         // TODO: Cycle instead of clamp?
         if (i < 0) { i = 0; }
-        if (i > this.color.length - 1) { i = this.color.length - 1; }
-        return this.color[i];
+        if (i > the_widget.color.length - 1) {
+          i = the_widget.color.length - 1;
+        }
+        return the_widget.color[i];
       };
     } else { // hopefully should be a gradient already
       return this.color;
@@ -213,7 +253,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       .text("flat");
     cs_select.append("option")
       .attr("value", "custom")
-      .attr("selected", true)
       .text("custom");
     // grouped options
     var cat_group = cs_select.append("optgroup")
@@ -244,13 +283,21 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     .enter().append("option")
       .attr("value", d => d)
       .text(d => d);
+    // Set default
+    var the_widget = this;
+    cs_select.selectAll("option")
+      .filter(function() { return this.value == the_widget.default_selection; })
+      .attr("selected", true);
 
     // custom flat color picker
     var cs_flat = row.append("input")
       .attr("class", "spaced_inline")
       .attr("type", "color")
-      .attr("value", this.flat_color)
-      .style("display", "none");
+      .attr("value", this.flat_color);
+
+    if (this.default_selection != "flat") {
+      cs_flat.style("display", "none");
+    }
 
     // custom gradient color pickers
     var cs_custom = row.append("span")
@@ -265,9 +312,14 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       .attr("value", this.custom_gradient_end);
     cs_custom.append("span").text(" )");
 
+    if (this.default_selection != "custom") {
+      cs_custom.style("display", "none");
+    }
+
     // gradient demo
     var cs_demo = row.append("span")
-      .attr("class", "gradient_demo");
+      .attr("class", "gradient_demo")
+      .style("background", the_widget.get_css_gradient());
 
     // Color scale select:
     var the_widget = this;
@@ -286,20 +338,14 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         cs_custom.style("display", "none");
         the_widget.set_color(ALL_GRADIENTS[sel]);
       }
-      cs_demo.style(
-        "background",
-        the_widget.get_css_gradient()
-      );
+      cs_demo.style("background", the_widget.get_css_gradient());
       if (the_widget.callback) { the_widget.callback(the_widget); }
     });
 
     cs_flat.on("change", function () {
       the_widget.flat_color = this.value;
       the_widget.set_color(the_widget.flat_color);
-      cs_demo.style(
-        "background",
-        the_widget.get_css_gradient()
-      );
+      cs_demo.style("background", the_widget.get_css_gradient());
       if (the_widget.callback) { the_widget.callback(the_widget); }
     })
 
@@ -307,19 +353,13 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     cg_start.on("change", function () {
       the_widget.custom_gradient_start = this.value;
       the_widget.set_color("custom");
-      cs_demo.style(
-        "background",
-        the_widget.get_css_gradient()
-      );
+      cs_demo.style("background", the_widget.get_css_gradient());
       if (the_widget.callback) { the_widget.callback(the_widget); }
     });
     cg_end.on("change", function () {
       the_widget.custom_gradient_end = this.value;
       the_widget.set_color("custom");
-      cs_demo.style(
-        "background",
-        the_widget.get_css_gradient()
-      );
+      cs_demo.style("background", the_widget.get_css_gradient());
       if (the_widget.callback) { the_widget.callback(the_widget); }
     });
   }
@@ -352,6 +392,15 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.set_y_axis(y_index);
 
     var the_view = this;
+
+    this.mode_toggle = new ToggleWidget(
+      "Show point approximation (instead of density)",
+      true,
+      function (yes) {
+        the_view.show_density = !yes;
+        the_view.draw(); // redraw
+      }
+    );
 
     this.x_selector = new SelectWidget(
       "X-axis: ",
@@ -486,16 +535,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   LensView.prototype.put_controls = function(node) {
     node.selectAll("*").remove();
     var the_view = this;
-    var row = node.append("div").attr("class", "controls_row");
-    row.append("input")
-      .attr("type", "checkbox")
-      .attr("checked", true)
-      .on("change", function () {
-        the_view.show_density = !this.checked;
-        the_view.draw(); // redraw
-      });
-    row.append("span")
-      .text("Show point approximation (instead of density)");
+    this.mode_toggle.put_controls(node);
 
     this.x_selector.put_controls(node);
     this.y_selector.put_controls(node);
@@ -788,17 +828,38 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   var DEFAULT_BINS = 10;
 
   // Limit on # of bars to display (bars are sorted by length, so smallest bars
-  // will be cut off).
+  // will be cut off)
   var DEFAULT_BAR_LIMIT = 30;
 
+  // Modes for displaying histograms
+  var HISTOGRAM_MODES = [
+    "sums",
+    "counts",
+    "averages",
+    "avgcounts",
+    "normalized",
+    "normcounts"
+  ];
+
   // Creates a histogram of values in the given field using just the given
-  // records from the given dataset. If normalize is given and true, histogram
-  // values will be normalized between 0 and 1. Normalize may also take on the
-  // special values "count" (count each key as 1 even if the field has keys and
-  // values) and "average" (compute average value for each key when the field
-  // has keys and values). These special values are treated as true if the
-  // field isn't a map, and "count" mode is entered automatically if the target
-  // field has any non-numeric keys.
+  // records from the given dataset.
+  //
+  // Mode will default to "sums," and specifies how to tally items:
+  //   sums
+  //     The default: add up values under each key in a map, or count # of
+  //     items within each range for numbers, or count # of items w/ each value
+  //     for strings.
+  //   counts
+  //     Count # of items w/in each bin or under each key, even if keys have
+  //     numeric values associated with them.
+  //   averages
+  //     As sums, but divided by the total # of items, to produce an average.
+  //   avgcounts
+  //     As counts, but averaged like averages.
+  //   normalized
+  //     As sums, but normalized relative to the largest sum.
+  //   normcounts
+  //     As counts, but normalized.
   //
   // If the target field is numeric, a binned histogram will be created using
   // the given number of bins (or DEFAULT_BINS) spread out over the full range
@@ -820,7 +881,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     dataset,
     records,
     field,
-    normalize,
+    mode,
     bins,
     domain,
     bar_limit
@@ -828,21 +889,46 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.id = id;
     this.data = dataset;
     this.records = records;
-    this.normalize = normalize;
     this.bins = bins;
     this.domain = domain;
     this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
 
-    this.set_field(field); // also computes counts
+    // set field & mode and compute counts
+    this.set_mode(mode);
+    this.set_field(field);
+    this.compute_counts();
 
     // set up widgets:
     var the_view = this;
-    this.color_widget = new ColorWidget(
-      "flat",
-      "#6688cc",
-      "#f0e8c8",
-      "#631200",
-      function () { the_view.draw(); }
+
+    this.count_toggle = new ToggleWidget(
+      "Count keys (even when values could be summed)",
+      this.force_counts,
+      function (yes) {
+        the_view.force_counts = yes;
+        the_view.compute_counts();
+        the_view.draw();
+      }
+    );
+
+    this.average_toggle = new ToggleWidget(
+      "Average values in bins (instead of summing them)",
+      this.average,
+      function (yes) {
+        the_view.average = yes;
+        the_view.compute_counts();
+        the_view.draw();
+      }
+    );
+
+    this.normalize_toggle = new ToggleWidget(
+      "Normalzie values (relative to largest)",
+      this.normalize,
+      function (yes) {
+        the_view.normalize = yes;
+        the_view.compute_counts();
+        the_view.draw();
+      }
     );
 
     var inames = ds.index_names(this.data);
@@ -852,33 +938,71 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       ds.get_name(this.data, this.field),
       function (iname) {
         the_view.set_field(iname);
+        the_view.compute_counts();
         the_view.draw();
       }
-    )
+    );
+
+    this.color_widget = new ColorWidget(
+      "flat",
+      "#6688cc",
+      "#f0e8c8",
+      "#631200",
+      function () { the_view.draw(); }
+    );
   }
 
-  // Reassigns the field for this histogram. Triggers a recount of the
-  // histogram bin values.
+  // Reassigns the field for this histogram. compute_counts should be called
+  // afterwards.
   Histogram.prototype.set_field = function (field) {
     if (typeof field === "string") {
       field = ds.lookup_index(this.data, field);
     }
     this.field = field;
-    this.compute_counts();
   }
 
-  // Reassigns the record set for this histogram. Triggers a recount of the
-  // histogram bin values.
+  // Reassigns the record set for this histogram. compute_counts should be
+  // called to update the counts.
   Histogram.prototype.set_records = function (records) {
     this.records = records;
-    this.compute_counts();
+  }
+
+  // Changes the counting mode. Call compute_counts afterwards.
+  Histogram.prototype.set_mode = function (mode) {
+    if (HISTOGRAM_MODES.indexOf(mode) < 0) {
+      mode = "sums";
+    }
+    if (mode === "sums") {
+      this.force_counts = false;
+      this.average = false;
+      this.normalize = false;
+    } else if (mode === "counts") {
+      this.force_counts = true;
+      this.average = false;
+      this.normalize = false;
+    } else if (mode === "averages") { 
+      this.force_counts = false;
+      this.average = true;
+      this.normalize = false;
+    } else if (mode === "avgcounts") {
+      this.force_counts = true;
+      this.average = true;
+      this.normalize = false;
+    } else if (mode === "normalized") {
+      this.force_counts = false;
+      this.average = false;
+      this.normalize = true;
+    } else if (mode === "normcounts") {
+      this.force_counts = true;
+      this.average = false;
+      this.normalize = true;
+    }
   }
 
   // (Re-)computes the counts for this histogram.
   Histogram.prototype.compute_counts = function () {
     var ft = ds.get_type(this.data, this.field);
     this.counts = {};
-    var normalize = this.normalize;
     var bins = this.bins;
     var domain = this.domain;
     if (ft.kind === "number") {
@@ -935,23 +1059,12 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           }
         }
       }
-      var mode = "sum";
-      if (normalize == "count" || !all_numeric) {
-        mode = "count";
-        // TODO: Some way to ask for normalized counts of numeric maps?
-        if (all_numeric) {
-          normalize = false;
-        }
-      } else if (normalize == "average") {
-        mode = "average";
-        normalize = false;
-      }
       for (let i = 0; i < this.records.length; ++i) {
         var val = ds.get_field(this.data, this.records[i], this.field);
         for (var k in val) {
           if (val.hasOwnProperty(k)) {
             var name = ds.get_name(this.data, this.field.concat([ k ]));
-            if (mode === "count") {
+            if (this.force_counts || !all_numeric) {
               if (this.counts.hasOwnProperty(name)) {
                 this.counts[name] += 1;
               } else {
@@ -968,7 +1081,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           }
         }
       }
-      if (mode === "average") {
+      if (this.average) {
         for (var k in this.counts) {
           if (this.counts.hasOwnProperty(k)) {
             this.counts[k] /= this.records.length;
@@ -980,7 +1093,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       this.counts = undefined;
     }
 
-    if (normalize) {
+    if (this.normalize) {
       var mx = undefined;
       // find max
       for (var k in this.counts) {
@@ -1048,6 +1161,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   Histogram.prototype.put_controls = function (node) {
     node.selectAll("*").remove();
     this.field_selector.put_controls(node);
+    this.count_toggle.put_controls(node);
+    this.average_toggle.put_controls(node);
+    this.normalize_toggle.put_controls(node);
     this.color_widget.put_controls(node);
   }
 

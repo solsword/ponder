@@ -197,8 +197,8 @@ function (d3, utils, qt, prp) {
         .data(leaves)
       .enter().append("circle")
         .attr("class", "point")
-        .attr("cx", d => d.centroid[0])
-        .attr("cy", d => d.centroid[1])
+        .attr("cx", d => d.centroid[0] || 0)
+        .attr("cy", d => d.centroid[1] || 0)
         .attr("r", radius_of)
         .attr("fill", color_for);
 

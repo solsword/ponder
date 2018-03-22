@@ -170,13 +170,21 @@ function (d3, utils, ds, vw, qt, viz, prp) {
     LEFT_WINDOW.select("#left_placeholder").style("display", "none");
     LEFT_VIEW.draw();
 
+    var hdefault = ds.nth_of_kind(data, "map", 0);
+    if (hdefault === undefined) {
+      hdefault = ds.nth_of_kind(data, "string", 0);
+    }
+    if (hdefault === undefined) {
+      hdefault = ds.nth_of_kind(data, "number", 2);
+    }
+    if (hdefault === undefined) {
+      hdefault = data.indices[0];
+    }
     RIGHT_VIEW = new vw.Histogram(
       "right",
       data,
       LEFT_VIEW.selected,
       ds.nth_of_kind(data, "map", 0),
-      "average",
-      // "count",
     );
     RIGHT_VIEW.bind_frame(RIGHT_FRAME);
     RIGHT_VIEW.put_controls(RIGHT_CONTROLS);
@@ -185,6 +193,7 @@ function (d3, utils, ds, vw, qt, viz, prp) {
 
     LEFT_VIEW.subscribe_to_selection(function (items) {
       RIGHT_VIEW.set_records(items);
+      RIGHT_VIEW.compute_counts();
       RIGHT_VIEW.draw();
     });
   }
