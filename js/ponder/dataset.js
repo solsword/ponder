@@ -168,19 +168,26 @@ function (utils, prp) {
   }
 
   // Checks whether a dataset has all of the necessary keys for full
-  // functionality (doesn't check values, however).
-  function is_complete(dataset) {
-    return (
-      dataset.hasOwnProperty("aliases")
-   && dataset.hasOwnProperty("glosses")
-   && dataset.hasOwnProperty("types")
-   && dataset.hasOwnProperty("domains")
-   && dataset.hasOwnProperty("imap")
-   && dataset.hasOwnProperty("indices")
-   && dataset.hasOwnProperty("fmap")
-   && dataset.hasOwnProperty("fields")
-   && dataset.hasOwnProperty("records")
-    );
+  // functionality (doesn't check values, however). Returns a list of missing
+  // keys, or an empty list if none are missing.
+  function missing_keys(dataset) {
+    var missing = [];
+    var required = [
+      "types",
+      "domains",
+      "imap",
+      "indices",
+      "fmap",
+      "fields",
+      "records",
+    ];
+    for (let i = 0; i < required.length; ++i) {
+      var key = required[i];
+      if (!dataset.hasOwnProperty(key)) {
+        missing.push(key);
+      }
+    }
+    return missing;
   }
 
   return {
@@ -195,6 +202,6 @@ function (utils, prp) {
     "index_names": index_names,
     "nth_of_kind": nth_of_kind,
     "preprocess_data": preprocess_data,
-    "is_complete": is_complete,
+    "missing_keys": missing_keys,
   };
 });

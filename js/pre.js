@@ -6,6 +6,7 @@ requirejs.config({
       "d3-interpolate": "js/node_modules/d3-interpolate/build/d3-interpolate.js",
       "d3-color": "js/node_modules/d3-color/build/d3-color.js",
       "d3-scale-chromatic": "js/node_modules/d3-scale-chromatic/dist/d3-scale-chromatic.js",
+      "file-saver": "js/node_modules/file-saver/dist/FileSaver.js",
     }
   }
 });

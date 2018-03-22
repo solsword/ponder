@@ -125,13 +125,18 @@ function (d3, utils, ds, vw, qt, viz, prp) {
       .on(
         "mousedown touchstart",
         function () {
+          var blob = new Blob([pkg], {type: "text/json;charset=utf-8"});
+          var ourl = URL.createObjectURL(blob);
+          var orig_name = d3.select("#data_file").node().value;
+          var base = orig_name.split(/[\\\/]/).pop();
+          if (base.search(/\./) >= 0) {
+            var bits = base.split(".");
+            bits.pop();
+            base = bits.join(".");
+          }
           var link = d3.select("#download_link");
-          link.attr(
-            "href",
-            "data:text/json;charset=utf-8," + encodeURIComponent(pkg)
-          )
-          .attr("download", "data.json");
-          // TODO: Use original name?
+          link.attr("href", ourl)
+          .attr("download", base + "-processed.json");
         }
       );
   }
@@ -142,9 +147,14 @@ function (d3, utils, ds, vw, qt, viz, prp) {
 
   // Called after data is loaded
   function populate_data(data) {
-    if (!ds.is_complete(data)) {
+    var mk = ds.missing_keys(data);
+    if (mk.length > 0) {
       LEFT_WINDOW.select("#left_placeholder")
-        .text("Invalid data file. Did you run the preprocessor?");
+        .text("Invalid data file. Did you run the preprocessor? (see console)");
+      console.error("Invalid data file. Missing keys:")
+      console.error(mk);
+      console.error("Data object:")
+      console.error(data);
       return;
     }
 
