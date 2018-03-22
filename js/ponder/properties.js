@@ -1,9 +1,5 @@
 define(["d3", "./utils"], function (d3, utils) {
   /*
-   * Module variables
-   */
-
-  /*
    * Helper functions
    */
 

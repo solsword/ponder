@@ -44,10 +44,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   SelectWidget.prototype.put_controls = function (node) {
     var row = node.append("div").attr("class", "controls_row");
     row.text(this.label);
+    var the_widget = this;
     var select = row.append("select")
       .on("change", function () { // set new axis, re-bind, and re-draw
-        if (this.callback) {
-          this.callback(utils.get_selected_value(this));
+        if (the_widget.callback) {
+          the_widget.callback(utils.get_selected_value(this));
         }
       });
     select.selectAll("option")
@@ -56,7 +57,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       .attr("value", d => d)
       .text(d => d);
     select.selectAll("option")
-      .filter(d => d == this.default_option)
+      .filter(d => d == the_widget.default_option)
       .attr("selected", true);
   }
 
@@ -137,10 +138,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.flat_color = default_color;
     this.custom_gradient_start = default_custom_start;
     this.custom_gradient_end = default_custom_end;
+    this.callback = callback;
 
     if (default_selection == "flat") {
       this.set_color(default_color);
-    } if (ALL_GRADIENTS.hasOwnProperty(default_selection)) {
+    } else if (ALL_GRADIENTS.hasOwnProperty(default_selection)) {
       this.set_color(ALL_GRADIENTS[default_selection]);
     } else {
       this.set_color(default_selection);
@@ -150,23 +152,54 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // Sets the color function for the widget. The special value "custom" can be
   // used to fall back to a gradient between the default custom start/end.
   ColorWidget.prototype.set_color = function(color) {
+    this.color = color;
     if (color === "custom") {
       this.color = d3.interpolateCubehelix(
         this.custom_gradient_start,
         this.custom_gradient_end
       );
-    } else if (typeof color === "string") {
-      this.color = function(t) { return color; };
-    } else if (Array.isArray(color)) {
-      this.color = function (t) {
+    } else {
+      this.color = color;
+    }
+  }
+
+  // Get the domain of the color gradient function for this widget. Returned as
+  // an array of start/end numbers.
+  ColorWidget.prototype.get_domain = function () {
+    if (typeof this.color === "string") {
+      return [ 0, 0 ];
+    } else if (Array.isArray(this.color)) {
+      return [ 0, this.color.length - 1 ];
+    } else {
+      return [ 0, 1 ];
+    }
+  }
+
+  // Extracts a gradient function 
+  ColorWidget.prototype.get_gradient = function () {
+    if (typeof this.color === "string") {
+      return x => this.color;
+    } else if (Array.isArray(this.color)) {
+      return function (t) {
         var i = Math.floor(t);
         // TODO: Cycle instead of clamp?
         if (i < 0) { i = 0; }
-        if (i > color.length - 1) { i = color.length - 1; }
-        return color[i];
+        if (i > this.color.length - 1) { i = this.color.length - 1; }
+        return this.color[i];
       };
-    } else { // hopefully it's an interpolation function?
-      this.color = color;
+    } else { // hopefully should be a gradient already
+      return this.color;
+    }
+  }
+
+  // Extracts a CSS background style property
+  ColorWidget.prototype.get_css_gradient = function () {
+    if (typeof this.color === "string") {
+      return this.color;
+    } else if (Array.isArray(this.color)) {
+      return utils.css_scheme("to right", this.color);
+    } else { // hopefully should be a gradient already
+      return utils.css_gradient("to right", this.color);
     }
   }
 
@@ -214,12 +247,14 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     // custom flat color picker
     var cs_flat = row.append("input")
+      .attr("class", "spaced_inline")
       .attr("type", "color")
       .attr("value", this.flat_color)
       .style("display", "none");
 
     // custom gradient color pickers
-    var cs_custom = row.append("span");
+    var cs_custom = row.append("span")
+      .attr("class", "spaced_inline");
     cs_custom.append("span").text("( ");
     var cg_start = cs_custom.append("input")
       .attr("type", "color")
@@ -235,56 +270,57 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       .attr("class", "gradient_demo");
 
     // Color scale select:
+    var the_widget = this;
     cs_select.on("change", function () {
       var sel = utils.get_selected_value(this);
       if (sel === "flat") {
         cs_flat.style("display", "inline");
         cs_custom.style("display", "none");
-        this.set_color(this.flat_color);
+        the_widget.set_color(the_widget.flat_color);
       } else if (sel === "custom") {
         cs_flat.style("display", "none");
         cs_custom.style("display", "inline");
-        this.set_color("custom");
+        the_widget.set_color("custom");
       } else {
         cs_flat.style("display", "none");
         cs_custom.style("display", "none");
-        this.set_color(ALL_GRADIENTS[sel]);
+        the_widget.set_color(ALL_GRADIENTS[sel]);
       }
       cs_demo.style(
         "background",
-        utils.css_gradient("to right", this.color)
+        the_widget.get_css_gradient()
       );
-      if (this.callback) { this.callback(this); }
+      if (the_widget.callback) { the_widget.callback(the_widget); }
     });
 
     cs_flat.on("change", function () {
-      this.flat_color = this.value;
-      this.set_color(this.flat_color);
+      the_widget.flat_color = this.value;
+      the_widget.set_color(the_widget.flat_color);
       cs_demo.style(
         "background",
-        utils.css_gradient("to right", this.color)
+        the_widget.get_css_gradient()
       );
-      if (this.callback) { this.callback(this); }
+      if (the_widget.callback) { the_widget.callback(the_widget); }
     })
 
     // Custom gradient color select:
     cg_start.on("change", function () {
-      this.custom_gradient_start = this.value;
-      this.set_color("custom");
+      the_widget.custom_gradient_start = this.value;
+      the_widget.set_color("custom");
       cs_demo.style(
         "background",
-        utils.css_gradient("to right", this.color)
+        the_widget.get_css_gradient()
       );
-      if (this.callback) { this.callback(this); }
+      if (the_widget.callback) { the_widget.callback(the_widget); }
     });
     cg_end.on("change", function () {
-      this.custom_gradient_end = this.value;
-      this.set_color("custom");
+      the_widget.custom_gradient_end = this.value;
+      the_widget.set_color("custom");
       cs_demo.style(
         "background",
-        utils.css_gradient("to right", this.color)
+        the_widget.get_css_gradient()
       );
-      if (this.callback) { this.callback(this); }
+      if (the_widget.callback) { the_widget.callback(the_widget); }
     });
   }
 
@@ -312,25 +348,30 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     var inames = ds.index_names(this.data);
 
+    this.set_x_axis(x_index);
+    this.set_y_axis(y_index);
+
+    var the_view = this;
+
     this.x_selector = new SelectWidget(
       "X-axis: ",
       inames,
-      ds.get_name(this.data, x_index),
+      ds.get_name(this.data, this.x_index),
       function (iname) {
-        this.set_x_axis(iname);
-        this.rebind();
-        this.draw();
+        the_view.set_x_axis(iname);
+        the_view.rebind();
+        the_view.draw();
       }
     );
 
     this.y_selector = new SelectWidget(
       "Y-axis: ",
       inames,
-      ds.get_name(this.data, y_index),
+      ds.get_name(this.data, this.y_index),
       function (iname) {
-        this.set_y_axis(iname);
-        this.rebind();
-        this.draw();
+        the_view.set_y_axis(iname);
+        the_view.rebind();
+        the_view.draw();
       }
     );
 
@@ -340,11 +381,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       "density (default)",
       function (iname) {
         if (iname === "density (default)") {
-          this.set_color_property(undefined);
+          the_view.set_color_property(undefined);
         } else {
-          this.set_color_property(iname);
+          the_view.set_color_property(iname);
         }
-        this.draw();
+        the_view.draw();
       }
     );
 
@@ -353,7 +394,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       "#000",
       "#f0e8c8",
       "#631200",
-      function () { this.draw(); }
+      function () { the_view.draw(); }
     );
 
     this.label_selector = new SelectWidget(
@@ -362,16 +403,13 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       "none",
       function (iname) {
         if (iname == "none") {
-          this.set_labels(undefined);
+          the_view.set_labels(undefined);
         } else {
-          this.set_labels(iname);
+          the_view.set_labels(iname);
         }
-        this.draw();
+        the_view.draw();
       }
     );
-
-    this.set_x_axis(x_index);
-    this.set_y_axis(y_index);
   }
 
 
@@ -419,8 +457,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.resolution = min_side;
 
     this.tree = qt.build_quadtree(
-      this.data,
-      [ 0, 0, fw, fh ],
+      this.data.records,
+      [ [0, 0], [fw, fh] ],
       this.view_x,
       this.view_y,
       min_side
@@ -516,7 +554,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     viz.draw_quadtree(
       dplot,
       this.tree,
-      this.color_widget.color,
+      this.color_widget.get_gradient(),
       this.resolution,
       this.show_density,
       this.c_value,
@@ -607,7 +645,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // Subscribe a callback to trigger on selection updates. Callbacks receive
   // two arguments: an array of selected items, and the entire view object.
   LensView.prototype.subscribe_to_selection = function(callback) {
-    view.selection_listeners.push(callback);
+    this.selection_listeners.push(callback);
   }
 
   // Cancel a callback
@@ -641,29 +679,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Sets the color function for the view. The special value "custom" can be
-  // used to fall back to the custom_gradient_[start|end] values.
-  LensView.prototype.set_color = function(color) {
-    if (color === "custom") {
-      this.color = d3.interpolateCubehelix(
-        this.custom_gradient_start,
-        this.custom_gradient_end
-      );
-    } else if (typeof color === "string") {
-      this.color = function(t) { return color; };
-    } else if (Array.isArray(color)) {
-      this.color = function (t) {
-        var i = Math.floor(t);
-        // TODO: Cycle instead of clamp?
-        if (i < 0) { i = 0; }
-        if (i > color.length - 1) { i = color.length - 1; }
-        return color[i];
-      };
-    } else {
-      this.color = color;
-    }
-  }
-
   // Sets the coloring property for a view; use 'undefined' as the index to
   // revert to default coloring (by point density).
   LensView.prototype.set_color_property = function(c_index) {
@@ -671,7 +686,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       c_index = ds.lookup_index(this.data, c_index);
     }
     this.c_index = c_index;
-    if (c_index === undefined) {
+    if (c_index != undefined) {
       var nt = numerical_transform(this.data, c_index);
       this.c_value =
         d => (nt.getter(d) - nt.domain[0]) / (nt.domain[1] - nt.domain[0]);
@@ -815,29 +830,31 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.records = records;
     this.normalize = normalize;
     this.bins = bins;
+    this.domain = domain;
     this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
 
+    this.set_field(field); // also computes counts
+
     // set up widgets:
+    var the_view = this;
     this.color_widget = new ColorWidget(
       "flat",
       "#6688cc",
       "#f0e8c8",
       "#631200",
-      function () { this.draw(); }
+      function () { the_view.draw(); }
     );
 
     var inames = ds.index_names(this.data);
     this.field_selector = new SelectWidget(
       "Field: ",
       inames,
-      this.field,
+      ds.get_name(this.data, this.field),
       function (iname) {
-        this.set_field(iname);
-        this.draw();
+        the_view.set_field(iname);
+        the_view.draw();
       }
     )
-
-    this.compute_counts();
   }
 
   // Reassigns the field for this histogram. Triggers a recount of the
@@ -861,6 +878,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   Histogram.prototype.compute_counts = function () {
     var ft = ds.get_type(this.data, this.field);
     this.counts = {};
+    var normalize = this.normalize;
+    var bins = this.bins;
+    var domain = this.domain;
     if (ft.kind === "number") {
       var dom;
       if (bins === undefined) { bins = DEFAULT_BINS; }
@@ -926,22 +946,23 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         mode = "average";
         normalize = false;
       }
-      for (let i = 0; i < records.length; ++i) {
+      for (let i = 0; i < this.records.length; ++i) {
         var val = ds.get_field(this.data, this.records[i], this.field);
         for (var k in val) {
           if (val.hasOwnProperty(k)) {
+            var name = ds.get_name(this.data, this.field.concat([ k ]));
             if (mode === "count") {
-              if (this.counts.hasOwnProperty(k)) {
-                this.counts[k] += 1;
+              if (this.counts.hasOwnProperty(name)) {
+                this.counts[name] += 1;
               } else {
-                this.counts[k] = 1;
+                this.counts[name] = 1;
               }
             } else {
               var sv = val[k];
-              if (this.counts.hasOwnProperty(k)) {
-                this.counts[k] += sv;
+              if (this.counts.hasOwnProperty(name)) {
+                this.counts[name] += sv;
               } else {
-                this.counts[k] = sv;
+                this.counts[name] = sv;
               }
             }
           }
@@ -955,10 +976,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         }
       }
     } else {
-      console.error("Don't know how to make a histogram out of:")
-      console.error(ft);
+      // Don't know how to make a histogram out of that...
       this.counts = undefined;
-      return;
     }
 
     if (normalize) {
@@ -981,23 +1000,49 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
+  // Binds this histogram to a frame
   Histogram.prototype.bind_frame = function (frame) {
     this.frame = frame;
+  }
+
+  // Rebind to the existing frame
+  Histogram.prototype.rebind = function() {
+    if (this.frame === undefined) {
+      console.error("Can't rebind an unbound view!");
+      console.error(this);
+    } else {
+      this.bind_frame(this.frame);
+    }
   }
 
   Histogram.prototype.draw = function() {
     // Reset the frame:
     this.frame.selectAll("*").remove();
 
-    var fw = utils.get_width(this.frame);
-    var fh = utils.get_height(this.frame);
+    if (this.counts === undefined) {
+      this.frame.append("text")
+        .attr("id", this.id + "_placeholder")
+        .attr("class", "label")
+        .attr("x", utils.get_width(this.frame)/2)
+        .attr("y", utils.get_height(this.frame)/2)
+        .style("text-anchor", "middle")
+        .attr("dominant-baseline", "middle")
+        .text(
+          "Don't know how to create a histogram for: '"
+        + ds.get_name(this.data, this.field) + "'"
+        );
+    } else {
 
-    viz.draw_histogram(
-      this.frame,
-      this.counts,
-      this.bar_limit,
-      this.color_widget.color
-    )
+      var fw = utils.get_width(this.frame);
+      var fh = utils.get_height(this.frame);
+
+      viz.draw_histogram(
+        this.frame,
+        this.counts,
+        this.bar_limit,
+        this.color_widget.get_gradient()
+      );
+    }
   }
 
   Histogram.prototype.put_controls = function (node) {

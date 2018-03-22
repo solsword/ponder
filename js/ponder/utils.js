@@ -7,7 +7,7 @@ define(["d3"], function (d3) {
   var EPSILON = 1e-12;
 
   // Default number of stops for creating CSS gradient backgrounds
-  var DEFAULT_GRADIENT_STOPS = 12;
+  var DEFAULT_GRADIENT_STOPS = 24;
 
   /*
    * Helper functions

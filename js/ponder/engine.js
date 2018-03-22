@@ -152,8 +152,8 @@ function (d3, utils, ds, vw, qt, viz, prp) {
     LEFT_VIEW = new vw.LensView(
       "left",
       data,
-      inames[0],
-      inames[1]
+      ds.nth_of_kind(data, "number", 0),
+      ds.nth_of_kind(data, "number", 1),
     );
     LEFT_VIEW.bind_frame(LEFT_FRAME);
     LEFT_VIEW.put_controls(LEFT_CONTROLS);
@@ -164,7 +164,7 @@ function (d3, utils, ds, vw, qt, viz, prp) {
       "right",
       data,
       LEFT_VIEW.selected,
-      inames[0],
+      ds.nth_of_kind(data, "map", 0),
       "average",
       // "count",
     );
@@ -172,6 +172,11 @@ function (d3, utils, ds, vw, qt, viz, prp) {
     RIGHT_VIEW.put_controls(RIGHT_CONTROLS);
     RIGHT_WINDOW.select("#right_placeholder").style("display", "none");
     RIGHT_VIEW.draw();
+
+    LEFT_VIEW.subscribe_to_selection(function (items) {
+      RIGHT_VIEW.set_records(items);
+      RIGHT_VIEW.draw();
+    });
   }
 
   function preprocess_data(data) {
@@ -314,13 +319,6 @@ function (d3, utils, ds, vw, qt, viz, prp) {
         "click touchstart",
         function () { d3.select(this).attr("value", ""); }
       );
-
-    // TODO: Select-all on click in textarea?
-  }
-
-  function initiate_download() {
-    // TOOD: HERE
-    console.log("DOWN");
   }
 
   return {

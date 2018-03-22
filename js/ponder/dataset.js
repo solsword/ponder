@@ -60,6 +60,27 @@ function (utils, prp) {
     return result;
   }
 
+  // Returns the nth field of the given kind (e.g., "numeric", "string", etc.).
+  // If n is larger than the number of such fields, it will wrap around, but if
+  // there are no such fields, it will return undefined.
+  function nth_of_kind(dataset, kind, n) {
+    while (n >= 0) {
+      var st_n = n;
+      for (let i = 0; i < dataset.indices.length; ++i) {
+        var ind = dataset.indices[i];
+        if (get_type(dataset, ind).kind === kind) {
+          n -= 1;
+          if (n < 0) {
+            return ind;
+          }
+        }
+      }
+      if (st_n == n) {
+        return undefined;
+      }
+    }
+  }
+
   /*
    * Processing functions
    */
@@ -172,6 +193,7 @@ function (utils, prp) {
     "lookup_index": lookup_index,
     "aliased_indices": aliased_indices,
     "index_names": index_names,
+    "nth_of_kind": nth_of_kind,
     "preprocess_data": preprocess_data,
     "is_complete": is_complete,
   };
