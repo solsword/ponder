@@ -55,8 +55,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     row.append("span")
       .attr("class", "label")
       .text(this.label);
-
-      // TODO: THIS? .attr("class", "spaced_inline");
   }
 
   //////////////////
@@ -103,6 +101,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   /////////////////
 
   // Available preset color schemes & gradients:
+  // TODO: Return 0--1 shifted divided gradients instead of integer schemes!
   var CAT_SCHEMES = {
     "cat10": d3sc.schemeCategory10,
     "accent": d3sc.schemeAccent,
@@ -364,6 +363,74 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     });
   }
 
+  ///////////////////////
+  // MultiselectWidget //
+  ///////////////////////
+
+  // A widget that allows selecting from multiple option sets before triggering
+  // some action with a button. The callback will be called with an array of
+  // option values the same length as the provided array of option sets.
+  // Defaults may be given as 'undefined' to use the first option from each
+  // option set as that set's default. Each label precedes the corresponding
+  // selector.
+  function MultiselectWidget(
+    button_text,
+    labels,
+    option_sets,
+    defaults,
+    callback
+  ) {
+    this.button_text = button_text;
+    this.labels = labels;
+    this.option_sets = option_sets;
+    this.defaults = defaults || [];
+    this.callback = callback;
+  }
+
+  MultiselectWidget.prototype.put_controls = function (node) {
+    var row = node.append("div").attr("class", "controls_row");
+    var the_widget = this;
+    for (let i = 0; i < this.option_sets.length; ++i) {
+      var lbl = this.labels[i];
+      var opts = this.option_sets[i];
+      var def = this.defaults[i];
+
+      // label
+      row.append("span")
+        .attr("class", "label")
+        .text(lbl);
+
+      // select
+      var select = row.append("select")
+        .attr("class", "multiselect");
+
+      // options
+      select.selectAll("option")
+        .data(opts)
+      .enter().append("option")
+        .attr("value", d => d)
+        .text(d => d);
+
+      // Select the default if there is one:
+      select.selectAll("option").filter(d => d == def)
+        .attr("selected", true);
+    }
+    // The activation button
+    row.append("span").text(" ");
+    row.append("input")
+      .attr("type", "button")
+      .attr("value", this.button_text)
+      .on("click touchstart", function () {
+        if (the_widget.callback) {
+          var values = [];
+          row.selectAll("select").each(function (d) {
+            values.push(utils.get_selected_value(this));
+          });
+          the_widget.callback(values);
+        }
+      });
+  }
+
   //////////////
   // LensView //
   //////////////
@@ -383,15 +450,26 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.id = id;
     this.data = dataset;
     this.show_density = false;
+    this.hide_labels = false;
     this.selected = [];
     this.selection_listeners = [];
 
     var inames = ds.index_names(this.data);
+    // TODO: Need to be able to update these!
 
     this.set_x_axis(x_index);
     this.set_y_axis(y_index);
 
     var the_view = this;
+
+    this.labels_toggle = new ToggleWidget(
+      "Hide selection count & axis labels",
+      false,
+      function (yes) {
+        the_view.hide_labels = yes;
+        the_view.draw(); // redraw
+      }
+    );
 
     this.mode_toggle = new ToggleWidget(
       "Show point approximation (instead of density)",
@@ -478,6 +556,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     var xr = this.x_domain[1] - this.x_domain[0];
     var yr = this.y_domain[1] - this.y_domain[0];
+    if (xr == 0) { xr = 1; }
+    if (yr == 0) { yr = 1; }
     this.x_scale = d3.scaleLinear()
       .range([0, fw])
       .domain([
@@ -535,6 +615,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   LensView.prototype.put_controls = function(node) {
     node.selectAll("*").remove();
     var the_view = this;
+    this.labels_toggle.put_controls(node);
     this.mode_toggle.put_controls(node);
 
     this.x_selector.put_controls(node);
@@ -557,36 +638,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     var fw = utils.get_width(this.frame);
     var fh = utils.get_height(this.frame);
-
-    // x-axis:
-    this.frame.append("g")
-      .attr("id", this.id + "_x_axis")
-      .attr("class", "x axis")
-      .attr(
-        "transform",
-        "translate(0," + fh + ")"
-      )
-      .call(d3.axisBottom(this.x_scale))
-    .append("text")
-      .attr("class", "label")
-      .attr("x", fw * 0.98)
-      .attr("y", -fh * 0.02)
-      .style("text-anchor", "end")
-      .text(ds.get_name(this.data, this.x_index));
-
-    // y-axis
-    this.frame.append("g")
-      .attr("id", this.id + "_y_axis")
-      .attr("class", "y axis")
-      .call(d3.axisLeft(this.y_scale))
-    .append("text")
-      .attr("class", "label")
-      .attr("transform", "rotate(-90)")
-      .attr("y", fw * 0.02)
-      .attr("dy", ".71em")
-      .style("text-anchor", "end")
-      .text(ds.get_name(this.data, this.y_index));
-
+    
+    // quadtree first so that axes + labels go on top
     var dplot = this.frame.append("g")
       .attr("id", "qt_density")
       .attr("class", "density_plot");
@@ -600,6 +653,52 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       this.c_value,
       this.get_label
     );
+
+    // selection count label
+    var scl = this.frame.append("text")
+      .attr("id", "select_count_label")
+      .attr("class", "label")
+      .attr("x", fw * 0.99)
+      .attr("y", fh * 0.01)
+      .style("text-anchor", "end")
+      .style("dominant-baseline", "hanging")
+      .text(this.selected.length + " items selected");
+
+    if (this.hide_labels) { scl.style("display", "none"); }
+
+    // x-axis:
+    var xa = this.frame.append("g")
+      .attr("id", this.id + "_x_axis")
+      .attr("class", "x axis")
+      .attr(
+        "transform",
+        "translate(0," + fh + ")"
+      )
+      .call(d3.axisBottom(this.x_scale))
+    var xl = xa.append("text")
+      .attr("class", "label")
+      .attr("x", fw * 0.99)
+      .attr("y", -fh * 0.01)
+      .style("text-anchor", "end")
+      .text(ds.get_name(this.data, this.x_index));
+
+    if (this.hide_labels) { xl.style("display", "none"); }
+
+    // y-axis
+    var ya = this.frame.append("g")
+      .attr("id", this.id + "_y_axis")
+      .attr("class", "y axis")
+      .call(d3.axisLeft(this.y_scale))
+    var yl = ya.append("text")
+      .attr("class", "label")
+      .attr("transform", "rotate(-90)")
+      .attr("x", -fw * 0.01)
+      .attr("y", fw * 0.01)
+      .style("text-anchor", "end")
+      .style("dominant-baseline", "hanging")
+      .text(ds.get_name(this.data, this.y_index));
+
+    if (this.hide_labels) { yl.style("display", "none"); }
 
     // Add the lenses last
     dplot.append("g")
@@ -717,6 +816,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     for (let i = 0; i < this.selection_listeners.length; ++i) {
       this.selection_listeners[i](this.selected, this);
     }
+    // Update selection count label
+    this.frame.select("#select_count_label")
+      .text(this.selected.length + " items selected");
   }
 
   // Sets the coloring property for a view; use 'undefined' as the index to
@@ -727,7 +829,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
     this.c_index = c_index;
     if (c_index != undefined) {
-      var nt = numerical_transform(this.data, c_index);
+      var nt = ds.numerical_transform(this.data, c_index);
       this.c_value =
         d => (nt.getter(d) - nt.domain[0]) / (nt.domain[1] - nt.domain[0]);
     } else {
@@ -755,44 +857,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Figures out a numerical domain for the given index, and returns an object
-  // with the following keys:
-  //
-  //   getter
-  //     A function that takes a data record an returns a numerical value for
-  //     the given index.
-  //   domain
-  //     An array of two numbers: the minimum and maximum numerical values that
-  //     might be returned by the accessor.
-  //
-  // If the input index doesn't have a domain, the resulting getter will always
-  // return 0 and the domain will be [0, 0].
-  function numerical_transform(dataset, index) {
-    var dom = ds.get_domain(dataset, index);
-    if (dom == undefined) { // give up
-      return {
-        "getter": d => 0,
-        "domain": [0, 0]
-      };
-    } else if (Array.isArray(dom)) { // numerical range
-      return {
-        "getter": d => ds.get_field(dataset, d, index),
-        "domain": dom
-      };
-    } else { // must be a string domain containing counts
-      var values = Object.keys(dom);
-      values.sort();
-      var vmap = {}; 
-      for (let i = 0; i < values.length; ++i) {
-        vmap[values[i]] = i;
-      }
-      return {
-        "getter": d => vmap[ds.get_field(dataset, d, index)],
-        "domain": [ 0, values.length - 1 ]
-      };
-    }
-  }
-
   // Replaces the old x-axis of the domain. Usually requires re-binding the
   // domain to its frame afterwards.
   LensView.prototype.set_x_axis = function(x_index) {
@@ -802,7 +866,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.x_index = x_index;
     this.x_type = ds.get_type(this.data, x_index);
 
-    var nx = numerical_transform(this.data, x_index);
+    var nx = ds.numerical_transform(this.data, x_index);
     this.x_domain = nx.domain;
     this.raw_x = nx.getter;
   }
@@ -815,7 +879,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.y_index = y_index;
     this.y_type = ds.get_type(this.data, y_index);
 
-    var ny = numerical_transform(this.data, y_index);
+    var ny = ds.numerical_transform(this.data, y_index);
     this.y_domain = ny.domain;
     this.raw_y = ny.getter;
   }
@@ -827,8 +891,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // Default # of bins to use
   var DEFAULT_BINS = 10;
 
-  // Limit on # of bars to display (bars are sorted by length, so smallest bars
-  // will be cut off)
+  // Limit on # of bars to display (bars can be sorted by length)
   var DEFAULT_BAR_LIMIT = 30;
 
   // Modes for displaying histograms
@@ -844,22 +907,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // Creates a histogram of values in the given field using just the given
   // records from the given dataset.
   //
-  // Mode will default to "sums," and specifies how to tally items:
-  //   sums
-  //     The default: add up values under each key in a map, or count # of
-  //     items within each range for numbers, or count # of items w/ each value
-  //     for strings.
-  //   counts
-  //     Count # of items w/in each bin or under each key, even if keys have
-  //     numeric values associated with them.
-  //   averages
-  //     As sums, but divided by the total # of items, to produce an average.
-  //   avgcounts
-  //     As counts, but averaged like averages.
-  //   normalized
-  //     As sums, but normalized relative to the largest sum.
-  //   normcounts
-  //     As counts, but normalized.
+  // See "set_flags" for possible keys in the flags object (it can be left
+  // undefined to use defaults).
   //
   // If the target field is numeric, a binned histogram will be created using
   // the given number of bins (or DEFAULT_BINS) spread out over the full range
@@ -881,7 +930,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     dataset,
     records,
     field,
-    mode,
+    flags,
     bins,
     domain,
     bar_limit
@@ -893,19 +942,36 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.domain = domain;
     this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
 
+    this.flags = {
+      "force_counts": false,
+      "average": false,
+      "normalize": false,
+      "sort": false,
+    }
+
     // set field & mode and compute counts
-    this.set_mode(mode);
+    this.set_flags(flags);
     this.set_field(field);
     this.compute_counts();
 
     // set up widgets:
     var the_view = this;
 
+    this.sort_toggle = new ToggleWidget(
+      "Sort by largest first (otherwise use natural order)",
+      this.flags.sort,
+      function (yes) {
+        the_view.flags.sort = yes;
+        the_view.compute_counts();
+        the_view.draw();
+      }
+    )
+
     this.count_toggle = new ToggleWidget(
       "Count keys (even when values could be summed)",
-      this.force_counts,
+      this.flags.force_counts,
       function (yes) {
-        the_view.force_counts = yes;
+        the_view.flags.force_counts = yes;
         the_view.compute_counts();
         the_view.draw();
       }
@@ -913,9 +979,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.average_toggle = new ToggleWidget(
       "Average values in bins (instead of summing them)",
-      this.average,
+      this.flags.average,
       function (yes) {
-        the_view.average = yes;
+        the_view.flags.average = yes;
         the_view.compute_counts();
         the_view.draw();
       }
@@ -923,9 +989,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.normalize_toggle = new ToggleWidget(
       "Normalzie values (relative to largest)",
-      this.normalize,
+      this.flags.normalize,
       function (yes) {
-        the_view.normalize = yes;
+        the_view.flags.normalize = yes;
         the_view.compute_counts();
         the_view.draw();
       }
@@ -967,36 +1033,22 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.records = records;
   }
 
-  // Changes the counting mode. Call compute_counts afterwards.
-  Histogram.prototype.set_mode = function (mode) {
-    if (HISTOGRAM_MODES.indexOf(mode) < 0) {
-      mode = "sums";
-    }
-    if (mode === "sums") {
-      this.force_counts = false;
-      this.average = false;
-      this.normalize = false;
-    } else if (mode === "counts") {
-      this.force_counts = true;
-      this.average = false;
-      this.normalize = false;
-    } else if (mode === "averages") { 
-      this.force_counts = false;
-      this.average = true;
-      this.normalize = false;
-    } else if (mode === "avgcounts") {
-      this.force_counts = true;
-      this.average = true;
-      this.normalize = false;
-    } else if (mode === "normalized") {
-      this.force_counts = false;
-      this.average = false;
-      this.normalize = true;
-    } else if (mode === "normcounts") {
-      this.force_counts = true;
-      this.average = false;
-      this.normalize = true;
-    }
+  // Changes the counting mode. Flags should be an object with some or all of
+  // the following keys:
+  //
+  // force_counts
+  //   Whether to force counts or use values when available.
+  // average
+  //   Whether to average or sum values.
+  // normalize
+  //   Whether to normalize results.
+  // sort
+  //   Whether to sort by bar length or not.
+  //
+  // Call compute_counts afterwards.
+  Histogram.prototype.set_flags = function (flags) {
+    if (flags === undefined) { flags = {} };
+    this.flags = Object.assign(this.flags, flags);
   }
 
   // (Re-)computes the counts for this histogram.
@@ -1041,7 +1093,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         }
       }
     } else if (ft.kind === "string") {
-      for (let i = 0; i < records.length; ++i) {
+      for (let i = 0; i < this.records.length; ++i) {
         var val = ds.get_field(this.data, this.records[i], this.field);
         if (this.counts.hasOwnProperty(val)) {
           this.counts[val] += 1;
@@ -1064,7 +1116,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         for (var k in val) {
           if (val.hasOwnProperty(k)) {
             var name = ds.get_name(this.data, this.field.concat([ k ]));
-            if (this.force_counts || !all_numeric) {
+            if (this.flags.force_counts || !all_numeric) {
               if (this.counts.hasOwnProperty(name)) {
                 this.counts[name] += 1;
               } else {
@@ -1081,7 +1133,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           }
         }
       }
-      if (this.average) {
+      if (this.flags.average) {
         for (var k in this.counts) {
           if (this.counts.hasOwnProperty(k)) {
             this.counts[k] /= this.records.length;
@@ -1093,7 +1145,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       this.counts = undefined;
     }
 
-    if (this.normalize) {
+    if (this.flags.normalize) {
       var mx = undefined;
       // find max
       for (var k in this.counts) {
@@ -1153,7 +1205,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         this.frame,
         this.counts,
         this.bar_limit,
-        this.color_widget.get_gradient()
+        this.color_widget.get_gradient(),
+        this.flags.sort,
       );
     }
   }
@@ -1161,6 +1214,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   Histogram.prototype.put_controls = function (node) {
     node.selectAll("*").remove();
     this.field_selector.put_controls(node);
+    this.sort_toggle.put_controls(node);
     this.count_toggle.put_controls(node);
     this.average_toggle.put_controls(node);
     this.normalize_toggle.put_controls(node);
@@ -1168,6 +1222,10 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   }
 
   return {
+    "ToggleWidget": ToggleWidget,
+    "SelectWidget": SelectWidget,
+    "ColorWidget": ColorWidget,
+    "MultiselectWidget": MultiselectWidget,
     "LensView": LensView,
     "Histogram": Histogram,
   };

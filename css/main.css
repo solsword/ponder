@@ -32,41 +32,7 @@ a:active {
   color: #8df;
 }
 
-table {
-  border-collapse: collapse;
-}
-
-thead>tr {
-  background-color: #ddd;
-}
-
-tr:nth-child(even) {
-  background-color: #eee;
-}
-
-tr:hover {
-  background-color: #ccc;
-}
-
-th, td {
-  padding: 6pt;
-}
-
 /* Active elements */
-
-.windows {
-  margin: 0pt;
-  padding: 0pt;
-}
-
-.window {
-  width: 48%;
-  height: 800px;
-  display: inline-block;
-  margin: 16pt 0.5% 16pt 0.5%;
-  padding: 0pt;
-  background: #fff;
-}
 
 #top_panel {
   width: 40em;
@@ -74,17 +40,33 @@ th, td {
   text-align: center;
 }
 
-#controls {
-  margin: 0pt;
+#layout {
+  width: 98%;
+  margin: 8pt 0.5% 8pt 0.5%;
+  border-collapse: collapse;
+}
+
+#layout td {
+  padding: 0.5%;
+}
+
+#windows td {
+  height: 600px;
+}
+
+.window {
+  width: 100%;
+  height: 100%;
   padding: 0pt;
+  background: #fff;
 }
 
 .control_panel {
-  text-align: left;
-  width: 40%;
-  display: inline-block;
-  margin: 0pt 4% 8pt 4%;
+  width: 80%;
+  height: 90%;
   padding: 8pt;
+  margin: auto;
+  text-align: left;
   background: #fff;
 }
 
@@ -154,6 +136,26 @@ th, td {
 }
 
 /* pre.html elements */
+
+table.fields_list {
+  border-collapse: collapse;
+}
+
+table.fields_list>thead>tr {
+  background-color: #ddd;
+}
+
+table.fields_list tr:nth-child(even) {
+  background-color: #eee;
+}
+
+table.fields_list tr:hover {
+  background-color: #ccc;
+}
+
+table.fields_list th, table.fields_list td {
+  padding: 6pt;
+}
 
 #output_bin {
   width: 100%;

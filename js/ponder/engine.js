@@ -4,11 +4,12 @@ define(
   "./utils",
   "./dataset",
   "./views",
+  "./transforms",
   "./quadtree",
   "./viz",
   "./properties"
 ],
-function (d3, utils, ds, vw, qt, viz, prp) {
+function (d3, utils, ds, vw, tf, qt, viz, prp) {
   /*
    * Module variables:
    */
@@ -102,13 +103,14 @@ function (d3, utils, ds, vw, qt, viz, prp) {
 
   function set_names(dataset) {
     var np = d3.select("#names_panel");
-    var nrows = np.select("table>tbody>tr");
+    var nrows = np.selectAll("#names_table>tbody>tr");
     nrows.each(function (d) {
       var row = d3.select(this);
       var ai = row.select(".alias_input");
       var skey = ai.attr("id").slice(5);
-      var sval = ai.attr("value");
+      var sval = ai.node().value;
       if (sval != undefined && sval != "") {
+        console.log(skey + "→" + sval);
         dataset.aliases[skey] = sval;
       }
     })
@@ -158,7 +160,37 @@ function (d3, utils, ds, vw, qt, viz, prp) {
       return;
     }
 
+    // Names of each data property:
     var inames = ds.index_names(data);
+
+    // extra transform option
+    var transformer = new vw.MultiselectWidget(
+      "Apply",
+      ["Compute transform: ", " of property "],
+      [["circularize"], inames],
+      undefined,
+      function (selected) {
+        if (selected[0] == "circularize") {
+          var dataset = LEFT_VIEW.data; // TODO: Better here!
+          var index = ds.lookup_index(dataset, selected[1]);
+          console.log(index);
+          var circ = new tf.Circularize(
+            dataset,
+            index
+          );
+          console.log(circ);
+          circ.apply()
+          LEFT_VIEW.draw();
+        } else {
+          console.log(selected);
+          // TODO: HERE
+        }
+      }
+    );
+
+    transformer.put_controls(d3.select("#top_panel"));
+
+    // left view
     LEFT_VIEW = new vw.LensView(
       "left",
       data,
@@ -170,6 +202,7 @@ function (d3, utils, ds, vw, qt, viz, prp) {
     LEFT_WINDOW.select("#left_placeholder").style("display", "none");
     LEFT_VIEW.draw();
 
+    // right view
     var hdefault = ds.nth_of_kind(data, "map", 0);
     if (hdefault === undefined) {
       hdefault = ds.nth_of_kind(data, "string", 0);
@@ -191,6 +224,7 @@ function (d3, utils, ds, vw, qt, viz, prp) {
     RIGHT_WINDOW.select("#right_placeholder").style("display", "none");
     RIGHT_VIEW.draw();
 
+    // hook view together
     LEFT_VIEW.subscribe_to_selection(function (items) {
       RIGHT_VIEW.set_records(items);
       RIGHT_VIEW.compute_counts();

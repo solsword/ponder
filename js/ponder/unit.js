@@ -72,6 +72,7 @@ define(["./utils"], function (utils) {
   }
 
   return {
+    "SUCCESS": SUCCESS,
     "equals_test": equals_test,
     "fp_equals_test": fp_equals_test,
     "run_suites": run_suites,

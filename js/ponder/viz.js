@@ -174,7 +174,9 @@ function (d3, utils, qt, prp) {
           return color_scale(d.relative_density);
         }
         function radius_of(d) {
-          return QT_POINT_RADIUS * (1 + d.relative_density)
+          // TODO: Decide
+          //return QT_POINT_RADIUS * (1 + d.relative_density);
+          return QT_POINT_RADIUS;
         }
       } else {
         function color_for(d) {
@@ -268,7 +270,14 @@ function (d3, utils, qt, prp) {
   //      source items here to graph averages instead of total counts. Can also
   //      be a map from values to numbers to use a different divisor for each
   //      value. Defaults to 1 (no normalization).
-  function draw_histogram(element, counts, bar_limit, color_scale, normalize) {
+  function draw_histogram(
+    element,
+    counts,
+    bar_limit,
+    color_scale,
+    sort,
+    normalize
+  ) {
     if (color_scale === undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
     }
@@ -315,7 +324,12 @@ function (d3, utils, qt, prp) {
     }
 
     // reverse sort order to put largest bars first
-    pairs.sort(function (a, b) { return -(a[1] - b[1]); });
+    if (sort) {
+      pairs.sort((a, b) => -(a[1] - b[1]));
+    } else {
+      // TODO: Better domain-based sorting?
+      pairs.sort((a, b) => a[0] < b[0] ? -1: 1);
+    }
 
     if (bar_limit != undefined) {
       pairs = pairs.slice(0, bar_limit);

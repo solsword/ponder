@@ -344,6 +344,26 @@ define(["d3"], function (d3) {
     return val;
   }
 
+  // Normalizes the given vector, returning a new array without modifying the
+  // original.
+  function normalize_vector(v) {
+    var max = undefined;
+    for (let i = 0; i < v.length; ++i) {
+      var val = Math.abs(v[i]);
+      if (max === undefined || val > max) {
+        max = val;
+      }
+    }
+    if (max == 0) {
+      return v.slice();
+    }
+    result = [];
+    for (let i = 0; i < v.length; ++i) {
+      result[i] = v[i] / max;
+    }
+    return result;
+  }
+
   return {
     "EPSILON": EPSILON,
     "posmod": posmod,
@@ -359,5 +379,6 @@ define(["d3"], function (d3) {
     "diff": diff,
     "css_gradient": css_gradient,
     "css_scheme": css_scheme,
+    "normalize_vector": normalize_vector,
   };
 });

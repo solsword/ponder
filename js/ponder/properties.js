@@ -12,8 +12,12 @@ define(["d3", "./utils"], function (d3, utils) {
         return n.toPrecision(4);
       }
     } else if (Number.isFinite(n)) {
-      if (n < 10000) {
+      if (n < 1000) {
         return n.toPrecision(4);
+      } else if (n < 10000) {
+        return n.toPrecision(5);
+      } else if (n < 100000) {
+        return n.toPrecision(6);
       } else {
         return n.toPrecision(3);
       }
@@ -242,7 +246,6 @@ define(["d3", "./utils"], function (d3, utils) {
     if (index === undefined) {
       return undefined;
     }
-    // Set i to index the
     var idx = fmap[index[0]];
     if (idx === undefined) {
       return undefined; // invalid field!
@@ -256,6 +259,67 @@ define(["d3", "./utils"], function (d3, utils) {
       }
     }
     return val;
+  }
+
+  // Puts a value into a record. Doesn't do any type checking or domain updates
+  // (see the dataset module for that). Throws an error on failure.
+  function put_value(fmap, types, record, index, value) {
+    if (index === undefined) {
+      throw "Index undefined.";
+    }
+    var idx = fmap[index[0]];
+    if (idx === undefined) {
+      throw "Invalid field.";
+    }
+
+    if (index.length == 1) {
+      record[idx] = value;
+      return;
+    }
+
+    var here = record[idx];
+    if (here == undefined) {
+      var typ = get_type(types, [ index[0] ]);
+      if (typ.kind === "tensor") {
+        var fresh = [];
+        record[idx] = fresh;
+        here = fresh;
+      } else if (typ.kind === "map") {
+        var fresh = {};
+        record[idx] = fresh;
+        here = fresh;
+      } else { // can't construct a non-container
+        console.error(typ);
+        throw (
+          "Unconstructable missing intermediate type: " + index[0] + "→" + typ
+        );
+      }
+    }
+    for (var i = 1; i < index.length - 1; ++i) {
+      console.log(here);
+      var next = here[index[i]];
+      if (next == undefined) {
+        var typ = get_type(types, index.slice(0, i));
+        if (typ.kind === "tensor") {
+          var fresh = [];
+          here[index[i]] = fresh;
+          here = fresh;
+        } else if (typ.kind === "map") {
+          var fresh = {};
+          here[index[i]] = fresh;
+          here = fresh;
+        } else { // can't construct a non-container
+          console.error(typ);
+          throw (
+            "Unconstructable missing intermediate type: "
+          + index.slice(0, i) + "→" + typ
+          );
+        }
+      } else {
+        here = next;
+      }
+    }
+    here[index[index.length - 1]] = value;
   }
 
   // Retrieves the type of the item at the given index from a types map.
@@ -362,22 +426,11 @@ define(["d3", "./utils"], function (d3, utils) {
         }
       }
     } else if (type.kind === "tensor") {
-      if (type.dimensions.length > 1) {
-        var sub_indices = property_indices(
-          "ignored",
-          {
-            "kind": tensor,
-            "value_type": type.value_type,
-            "dimensions": type.dimensions.slice(1),
-          }
-        );
-      } else {
-        var sub_indices = property_indices("ignored", type.value_type);
-      }
-      for (var i = 0; i < type.dimensions[0]; ++i) {
-        for (var j = 0; j < sub_indices.length; ++j) {
+      for (let i = 0; i < type.subtypes.length; ++i) {
+        var sub_indices = property_indices("ignored", type.subtypes[i]);
+        for (let j = 0; j < sub_indices.length; ++j) {
           var si = sub_indices[j];
-          options.push([name, i].concat(si.slice(1)));
+          options.push([name, i].concat(si.slice(1, si.length)));
         }
       }
     } // otherwise we're already done
@@ -422,7 +475,8 @@ define(["d3", "./utils"], function (d3, utils) {
 
   // Using the output of assess_properties, this function assesses the domain
   // of each numeric or string property identified, finding min & max for
-  // numeric properties and value frequencies for string properties.
+  // numeric properties and value frequencies for string properties. All other
+  // property types have undefined domains.
   function assess_domains(fields, records, types) {
     var result = {}
     var indices = all_indices(types);
@@ -437,7 +491,7 @@ define(["d3", "./utils"], function (d3, utils) {
           let r = records[j];
           let val = get_value(fm, r, ind);
           if (val === undefined) {
-            continue;
+            val = 0;
           }
           if (result.hasOwnProperty(k)) {
             let d = result[k];
@@ -455,7 +509,7 @@ define(["d3", "./utils"], function (d3, utils) {
           let r = records[j];
           let val = get_value(fm, r, ind);
           if (val === undefined) {
-            continue;
+            val = "«missing»";
           }
           if (result.hasOwnProperty(k)) {
             let d = result[k];
@@ -482,6 +536,7 @@ define(["d3", "./utils"], function (d3, utils) {
     "formatter_for_type": formatter_for_type,
     "fmap": fmap,
     "get_value": get_value,
+    "put_value": put_value,
     "get_type": get_type,
     "assess_type": assess_type,
     "combined_type": combined_type,
