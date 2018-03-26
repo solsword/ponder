@@ -110,7 +110,6 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       var skey = ai.attr("id").slice(5);
       var sval = ai.node().value;
       if (sval != undefined && sval != "") {
-        console.log(skey + "→" + sval);
         dataset.aliases[skey] = sval;
       }
     })
@@ -173,14 +172,11 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         if (selected[0] == "circularize") {
           var dataset = LEFT_VIEW.data; // TODO: Better here!
           var index = ds.lookup_index(dataset, selected[1]);
-          console.log(index);
           var circ = new tf.Circularize(
             dataset,
             index
           );
-          console.log(circ);
           circ.apply()
-          console.log(dataset.indices);
           // Update controls
           transformer.put_controls();
           LEFT_VIEW.put_controls();

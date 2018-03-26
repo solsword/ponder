@@ -63,13 +63,19 @@ function (d3, utils, ds) {
     var n_poles = this.vt.dimensions;
     var vec = this.vt.getter(record);
     var norm = utils.normalize_vector(vec);
+    var ns = norm.reduce((a, b) => a + b);
     var r = [0, 0];
+    // TODO: DEBUG
+    //console.log("normed: " + norm);
     for (let i = 0; i < n_poles; ++i) {
       var pc = this.pole_coordinates(i);
       r[0] += pc[0] * norm[i];
       r[1] += pc[1] * norm[i];
     }
-    return [r[0] / n_poles, r[1] / n_poles];
+    var result = [r[0] / ns, r[1] / ns];
+    // TODO: DEBUG
+    //console.log(result);
+    return result;
   }
 
   Circularize.prototype.add_field = function () {

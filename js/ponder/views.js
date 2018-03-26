@@ -480,7 +480,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   //////////////
 
   // Minimum size of a quadtree cell (in SVG units ~= screen pixels)
-  var DEFAULT_RESOLUTION = 1;
+  var DEFAULT_RESOLUTION = 4;
 
   // Minimum radius of the lens in SVG units (~= screen pixels)
   var MIN_LENS_RADIUS = 0.5;
@@ -520,6 +520,17 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       function (yes) {
         the_view.show_density = !yes;
         the_view.draw(); // redraw
+      }
+    );
+
+    this.res_selector = new SelectWidget(
+      "Resolution: ",
+      [2, 4, 8, 16, 32, 64],
+      DEFAULT_RESOLUTION,
+      function (value) {
+        the_view.set_resolution(Number.parseInt(value));
+        the_view.rebind();
+        the_view.draw();
       }
     );
 
@@ -607,7 +618,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // size of a quadtree cell in SVG units ~= screen pixels) will use the
   // existing resolution if one has already been specified or
   // DEFAULT_RESOLUTION if not.
-  LensView.prototype.bind_frame = function(frame, min_resolution) {
+  LensView.prototype.bind_frame = function(frame) {
     this.frame = frame;
 
     var fw = utils.get_width(frame);
@@ -634,22 +645,16 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.view_y = d => this.y_scale(this.raw_y(d));
 
     // build a quadtree in the view space:
-    var min_side = min_resolution;
-    if (min_side === undefined) {
-      if (this.resolution != undefined) {
-        min_side = this.resolution;
-      } else {
-        min_side = DEFAULT_RESOLUTION;
-      }
+    if (this.resolution === undefined) {
+      this.resolution = DEFAULT_RESOLUTION;
     }
-    this.resolution = min_side;
 
     this.tree = qt.build_quadtree(
       this.data.records,
       [ [0, 0], [fw, fh] ],
       this.view_x,
       this.view_y,
-      min_side
+      this.resolution
     );
 
     // set up default lens & shadow:
@@ -665,7 +670,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       console.error("Can't rebind an unbound view!");
       console.error(this);
     } else {
-      this.bind_frame(this.frame, this.resolution);
+      this.bind_frame(this.frame);
     }
   }
 
@@ -681,6 +686,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.labels_toggle.put_controls(node);
     this.mode_toggle.put_controls(node);
 
+    this.res_selector.put_controls(node);
     this.x_selector.put_controls(node);
     this.y_selector.put_controls(node);
 
@@ -920,6 +926,14 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
+  // Sets the grid resolution. Call rebind afterwards to rebuild the quadtree.
+  LensView.prototype.set_resolution = function (res) {
+    if (typeof res === "string") {
+      res = Number.parseInt(res);
+    }
+    this.resolution = res;
+  }
+
   // Replaces the old x-axis of the domain. Usually requires re-binding the
   // domain to its frame afterwards.
   LensView.prototype.set_x_axis = function(x_index) {
@@ -1044,7 +1058,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     )
 
     this.count_toggle = new ToggleWidget(
-      "Count keys (even when values could be summed)",
+      "Count non-zero/non-missing values (even when values could be summed)",
       this.flags.force_counts,
       function (yes) {
         the_view.flags.force_counts = yes;
@@ -1120,14 +1134,13 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     var ft = ds.get_type(this.data, this.field);
     this.counts = {};
     var bins = this.bins;
-    var domain = this.domain;
     if (ft.kind === "number") {
       var dom;
       if (bins === undefined) { bins = DEFAULT_BINS; }
       this.bins = bins;
-      if (domain === undefined) {
+      if (this.domain === undefined) {
         dom = ds.get_domain(this.data, this.field);
-      } else if (domain === "auto") {
+      } else if (this.domain === "auto") {
         dom = [undefined, undefined];
         for (let i = 0; i < this.records.length; ++i) {
           var val = ds.get_field(this.data, this.records[i], this.field);
@@ -1135,7 +1148,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           if (dom[1] === undefined || dom[1] < val) { dom[1] = val; }
         }
       } else {
-        dom = domain;
+        dom = this.domain;
       }
       this.domain = dom;
       var bs = (dom[1] - dom[0]) / bins;
@@ -1148,7 +1161,12 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
       for (let i = 0; i < this.records.length; ++i) {
         var val = ds.get_field(this.data, this.records[i], this.field);
-        var bin = Math.floor((val - dom[0]) / bs);
+        var bin;
+        if (val == dom[0] + bs * bins) {
+          bin = bins-1; // let the last bin be inclusive
+        } else {
+          bin = Math.floor((val - dom[0]) / bs);
+        }
         var bn = bin_names[bin];
         if (this.counts.hasOwnProperty(bn)) {
           this.counts[bn] += 1;
@@ -1165,6 +1183,44 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           this.counts[val] = 1;
         }
       }
+    } else if (ft.kind === "tensor" && ft.value_type.kind === "number") {
+      // tensor of numbers
+      for (let i = 0; i < this.records.length; ++i) {
+        var indices = prp.property_indices("ignored", ft);
+        var tdim = ft.dimensions.reduce((a, b) => a * b);
+        for (let j = 0; j < tdim; ++j) {
+          var idx = [];
+          for (let k = ft.dimensions.length - 1; k >= 0; --k) {
+            var li = j;
+            var d = ft.dimensions[k];
+            idx.push(li % d);
+            li = Math.floor(j / d);
+          }
+          var val = ds.get_field(
+            this.data,
+            this.records[i],
+            this.field.concat(idx)
+          );
+          var key = prp.index__string(idx);
+          if (this.flags.force_counts) {
+            if (this.counts.hasOwnProperty(key)) {
+              this.counts[key] += 1;
+            } else {
+              this.counts[key] = 1;
+            }
+          } else {
+            if (this.counts.hasOwnProperty(key)) {
+              this.counts[key] += val;
+            } else {
+              this.counts[key] = val;
+            }
+          }
+        }
+      }
+    } else if (ft.kind === "tensor") {
+      // TODO: HERE?!
+      console.log("Unknown tensor type");
+      console.log(ft);
     } else if (ft.kind === "map") {
       var all_numeric = true;
       for (var k in ft.subtypes) {
@@ -1180,33 +1236,36 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         for (var k in val) {
           if (val.hasOwnProperty(k)) {
             var name = ds.get_name(this.data, this.field.concat([ k ]));
-            if (this.flags.force_counts || !all_numeric) {
-              if (this.counts.hasOwnProperty(name)) {
-                this.counts[name] += 1;
+            if (val[k] != undefined && val[k] != null && val[k] != 0) {
+              if (this.flags.force_counts || !all_numeric) {
+                if (this.counts.hasOwnProperty(name)) {
+                  this.counts[name] += 1;
+                } else {
+                  this.counts[name] = 1;
+                }
               } else {
-                this.counts[name] = 1;
-              }
-            } else {
-              var sv = val[k];
-              if (this.counts.hasOwnProperty(name)) {
-                this.counts[name] += sv;
-              } else {
-                this.counts[name] = sv;
+                var sv = val[k];
+                if (this.counts.hasOwnProperty(name)) {
+                  this.counts[name] += sv;
+                } else {
+                  this.counts[name] = sv;
+                }
               }
             }
-          }
-        }
-      }
-      if (this.flags.average) {
-        for (var k in this.counts) {
-          if (this.counts.hasOwnProperty(k)) {
-            this.counts[k] /= this.records.length;
           }
         }
       }
     } else {
       // Don't know how to make a histogram out of that...
       this.counts = undefined;
+    }
+
+    if (this.flags.average) {
+      for (var k in this.counts) {
+        if (this.counts.hasOwnProperty(k)) {
+          this.counts[k] /= this.records.length;
+        }
+      }
     }
 
     if (this.flags.normalize) {

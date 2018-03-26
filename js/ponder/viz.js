@@ -6,7 +6,7 @@ function (d3, utils, qt, prp) {
    */
 
   // Resolution at which to cut off quadtree recursion for drawing.
-  DEFAULT_MIN_RESOLUTION = 1;
+  DEFAULT_MIN_RESOLUTION = undefined;
 
   // Default color scale
   DEFAULT_COLOR_SCALE = d3.interpolateMagma;
@@ -110,6 +110,13 @@ function (d3, utils, qt, prp) {
       min_resolution = DEFAULT_MIN_RESOLUTION;
     }
 
+    var base_density;
+    if (min_resolution != undefined) {
+      base_density = 1 / (min_resolution * min_resolution * 4);
+    } else {
+      base_density = undefined;
+    }
+
     var text = tree.extent;
     var tw = text[1][0] - text[0][0]
     var th = text[1][1] - text[0][1]
@@ -119,7 +126,8 @@ function (d3, utils, qt, prp) {
     var rects = qt.density_areas(
       tree,
       min_resolution,
-      1/(min_resolution * min_resolution * 4)
+      base_density,
+      true // min-as-zero
     );
 
     if (as_rects) { // shade density over rectangles
@@ -288,14 +296,24 @@ function (d3, utils, qt, prp) {
 
     if (typeof normalize === "object") {
       function bar_value(value) {
-        return counts[value] / normalize[value];
+        var nv = normalize[value];
+        if (Number.isFinite(nv) && nv != 0) {
+          return counts[value] / nv;
+        } else {
+          return NaN;
+        }
       }
       function bar_label(value) {
         return NBSP + prp.format_number(bar_value(value)) +"×"+normalize[value];
       }
     } else {
       function bar_value(value) {
-        return counts[value] / normalize;
+        var nv = normalize;
+        if (Number.isFinite(nv) && nv != 0) {
+          return counts[value] / nv;
+        } else {
+          return NaN;
+        }
       }
       if (normalize == 1) {
         function bar_label(value) {
@@ -346,6 +364,14 @@ function (d3, utils, qt, prp) {
     var bx = ew * 0.25 // 25% for value labels
     var bw = ew * 0.65; // 75% width (save extra 10% for count labels)
 
+    function bar_width(d) {
+      if (Number.isFinite(d[1]) && Number.isFinite(max) && max > 0) {
+        return bw * (d[1] / max)
+      } else {
+        return 0;
+      }
+    }
+
     var bargroup = element.selectAll("g")
       .data(pairs)
       .enter()
@@ -362,7 +388,7 @@ function (d3, utils, qt, prp) {
       .attr("class", "bar")
       .attr("x", bx)
       .attr("y", bpad)
-      .attr("width", function (d) { return bw * (d[1] / max) } )
+      .attr("width", bar_width)
       .attr("height", bih)
       .attr("fill", function(d) { return color_scale(d[1]/max); });
     bargroup.append("text") // value label before bar
@@ -374,7 +400,7 @@ function (d3, utils, qt, prp) {
       .text(function(d) { return "" + d[0] + NBSP; });
     bargroup.append("text") // count label at end of bar
       .attr("class", "label")
-      .attr("x", function (d) { return bx + bw * (d[1] / max) } )
+      .attr("x", function (d) { return bx + bar_width(d) } )
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "start")

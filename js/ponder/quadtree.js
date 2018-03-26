@@ -474,6 +474,7 @@ define(["./utils"], function (utils) {
   // back on the count divided by the area of a square the size of the
   // resolution limit of the tree.
   function compute_density(tree, node, extent, centroid) {
+    //console.log(["CD", tree, node, extent, centroid]);
     var density;
     var w = extent[1][0] - extent[0][0];
     var h = extent[1][1] - extent[0][1];
@@ -481,6 +482,7 @@ define(["./utils"], function (utils) {
     var cy = centroid[1];
     if (node.hasOwnProperty("children")) {
       density = node.count / (w * h);
+      //console.log(["CR", node.count, w*h, density]);
     } else {
       var mean_r = 0;
       for (var i = 0; i < node.count; ++i) {
@@ -490,11 +492,16 @@ define(["./utils"], function (utils) {
         var r = Math.sqrt(dx * dx + dy * dy);
         mean_r += r;
       }
-      if (mean_r == 0) {
-        var rl = tree.resolution_limit;
+      var rl = tree.resolution_limit;
+      if (mean_r < Math.SQRT2 * rl) {
         density = node.count / (rl * rl);
+        //console.log(["MR0", node.count, rl*rl, density]);
       } else {
         density = node.count / (2 * Math.PI * mean_r * mean_r);
+        /*console.log(
+          ["MR>0", node.count, mean_r, (2*Math.PI*mean_r*mean_r), density]
+        );
+        */
       }
     }
     return density;
@@ -509,6 +516,10 @@ define(["./utils"], function (utils) {
   // is also optional, but if given, it establishes a default base density
   // value, which will be used as the max density unless a denser region
   // exists.
+  //
+  // TODO: Interactions between max_resolution and density calculations!!!
+  // (max-rez-capped nodes may have children & thus use incorrect density
+  // estimate.)
   //
   // Results for a 1x1 region with points at:
   //   (0.6, 0.6),
@@ -553,7 +564,7 @@ define(["./utils"], function (utils) {
   //   }
   // ]
   //
-  function density_areas(tree, max_resolution, base_density) {
+  function density_areas(tree, max_resolution, base_density, min_as_zero) {
     results = [];
     var max_density = base_density;
     var min_density = undefined;
@@ -594,10 +605,7 @@ define(["./utils"], function (utils) {
           centroids["" + extent] = [cx, cy];
         } // else don't add a centroid at all
 
-        // Density is computed as as 1/2 count / mean distance-to-centroid for
-        // leaf nodes. For non-leaf nodes, we just use count / w*h. If the mean
-        // distance-to-centroid is zero, we fall back on the count divided by
-        // the area of a square the size of the resolution limit of the tree.
+        // density
         var w = extent[1][0] - extent[0][0];
         var h = extent[1][1] - extent[0][1];
         if (
@@ -630,7 +638,12 @@ define(["./utils"], function (utils) {
         }
         var centroid = centroids["" + extent];
         var density = compute_density(tree, node, extent, centroid);
-        var rel_density = (density - min_density) / (max_density - min_density);
+        // TODO: Which of these? Add a switch?
+        if (min_as_zero) {
+          var rel_density = density / max_density;
+        } else {
+          var rel_density = (density-min_density) / (max_density-min_density);
+        }
         results.push(
           {
             "extent": extent,

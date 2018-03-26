@@ -22,6 +22,48 @@ function (utils, prp) {
     return prp.get_value(dataset.fmap, record, index);
   }
 
+  // Updates the domain(s) under the given index which has gained the given new
+  // value.
+  function update_domain(dataset, index, value) {
+    var typ = get_type(dataset, index);
+    if (typ.kind === "number") {
+      var si = prp.index__string(index);
+      var old_dom = get_domain(dataset, index);
+      if (value < old_dom[0]) {
+        dataset.domains[si] = [ value, old_dom[1] ];
+      } else if (value > old_dom[1]) {
+        dataset.domains[si] = [old_dom[0], value ];
+      }
+    } else if (typ.kind === "string") {
+      var si = prp.index__string(index);
+      var old_dom = get_domain(dataset, index);
+      var old_count = old_dom[old_val];
+      if (old_count == 1) {
+        delete dataset.domains[si][old_val];
+      } else {
+        dataset.domains[si][old_val] -= 1;
+      }
+      if (old_dom.hasOwnProperty(value)) {
+        old_dom[value] += 1;
+      } else {
+        old_dom[value] = 1;
+      }
+    } else if (typ.kind === "tensor") {
+      for (let i = 0; i < typ.dimensions[0]; ++i) {
+        var ni = index.concat([i]);
+        update_domain(dataset, ni, value[i]);
+      }
+    } else if (typ.kind === "map") {
+      var old_dom = get_domain(dataset, index);
+      for (let k in old_dom) {
+        if (old_dom.hasOwnProperty(k)) {
+          var ni = index.concat([k]);
+          update_domain(dataset, ni, value[k]);
+        }
+      }
+    } // else no domain to worry about
+  }
+
   // Throws an error on failure (e.g., type mismatch).
   function set_field(dataset, record, index, value) {
     var old_val = get_field(dataset, record, index);
@@ -38,30 +80,7 @@ function (utils, prp) {
     prp.put_value(dataset.fmap, dataset.types, record, index, value);
 
     // update domain if necessary
-    if (old_typ.kind === "number") {
-      var si = prp.index__string(index);
-      var old_dom = get_domain(dataset, index);
-      var new_dom;
-      if (value < old_dom[0]) {
-        dataset.domains[si] = [ value, old_dom[1] ];
-      } else if (value > old_dom[1]) {
-        dataset.domains[si] = [old_dom[0], value ];
-      }
-    } else if (old_typ.kind === "string") {
-      var si = prp.index__string(index);
-      var old_dom = get_domain(dataset, index);
-      var old_count = old_dom[old_val];
-      if (old_count == 1) {
-        delete dataset.domains[si][old_val];
-      } else {
-        dataset.domains[si][old_val] -= 1;
-      }
-      if (old_dom.hasOwnProperty(value)) {
-        old_dom[value] += 1;
-      } else {
-        old_dom[value] = 1;
-      }
-    } // else no domain to worry about
+    update_domain(dataset, index, value);
   }
 
   function has_field(dataset, index) {

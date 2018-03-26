@@ -296,7 +296,6 @@ define(["d3", "./utils"], function (d3, utils) {
       }
     }
     for (var i = 1; i < index.length - 1; ++i) {
-      console.log(here);
       var next = here[index[i]];
       if (next == undefined) {
         var typ = get_type(types, index.slice(0, i));

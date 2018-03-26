@@ -345,7 +345,9 @@ define(["d3"], function (d3) {
   }
 
   // Normalizes the given vector, returning a new array without modifying the
-  // original.
+  // original. This divides each value by the maximum, to ensure that each
+  // value is within the range [0, 1]. However, it does not ensure that the sum
+  // of the values adds up to 1.
   function normalize_vector(v) {
     var max = undefined;
     for (let i = 0; i < v.length; ++i) {
