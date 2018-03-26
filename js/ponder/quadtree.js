@@ -468,6 +468,38 @@ define(["./utils"], function (utils) {
     visit_each_node(tree.root, tree.extent, fcn, post_order);
   }
 
+  // Computes the density of a quadtree node. Density is computed as as 1/2
+  // count / mean distance-to-centroid for leaf nodes. For non-leaf nodes, we
+  // just use count / w*h. If the mean distance-to-centroid is zero, we fall
+  // back on the count divided by the area of a square the size of the
+  // resolution limit of the tree.
+  function compute_density(tree, node, extent, centroid) {
+    var density;
+    var w = extent[1][0] - extent[0][0];
+    var h = extent[1][1] - extent[0][1];
+    var cx = centroid[0];
+    var cy = centroid[1];
+    if (node.hasOwnProperty("children")) {
+      density = node.count / (w * h);
+    } else {
+      var mean_r = 0;
+      for (var i = 0; i < node.count; ++i) {
+        var it = node.items[i];
+        var dx = tree.getx(it) - cx;
+        var dy = tree.gety(it) - cy;
+        var r = Math.sqrt(dx * dx + dy * dy);
+        mean_r += r;
+      }
+      if (mean_r == 0) {
+        var rl = tree.resolution_limit;
+        density = node.count / (rl * rl);
+      } else {
+        density = node.count / (2 * Math.PI * mean_r * mean_r);
+      }
+    }
+    return density;
+  }
+
   // Returns a list of area objects, which contain extent, density, relative
   // density, centroid, leaf, and quadtree node information. Areas overlap, and
   // larger (containing) areas come earlier in the list, so that they can be
@@ -534,22 +566,6 @@ define(["./utils"], function (utils) {
         // 100,000+ node data where the max_resolution is supposed to help
         // things?
 
-        // density
-        var w = extent[1][0] - extent[0][0];
-        var h = extent[1][1] - extent[0][1];
-        if (
-          max_resolution == undefined
-       || (w >= max_resolution && h >= max_resolution)
-        ) {
-          var density = node.count / (w * h);
-          if (max_density == undefined || density > max_density) {
-            max_density = density;
-          }
-          if (min_density == undefined || density < min_density) {
-            min_density = density;
-          }
-        } // otherwise skip density calculation
-
         // centroid
         if (node.hasOwnProperty("children")) {
           var cx = 0;
@@ -577,6 +593,25 @@ define(["./utils"], function (utils) {
           cy /= node.count;
           centroids["" + extent] = [cx, cy];
         } // else don't add a centroid at all
+
+        // Density is computed as as 1/2 count / mean distance-to-centroid for
+        // leaf nodes. For non-leaf nodes, we just use count / w*h. If the mean
+        // distance-to-centroid is zero, we fall back on the count divided by
+        // the area of a square the size of the resolution limit of the tree.
+        var w = extent[1][0] - extent[0][0];
+        var h = extent[1][1] - extent[0][1];
+        if (
+          max_resolution == undefined
+       || (w >= max_resolution && h >= max_resolution)
+        ) {
+          var density = compute_density(tree, node, extent, [cx, cy]);
+          if (max_density == undefined || density > max_density) {
+            max_density = density;
+          }
+          if (min_density == undefined || density < min_density) {
+            min_density = density;
+          }
+        } // otherwise skip density calculation
       },
       true // post-order traversal
     );
@@ -593,14 +628,15 @@ define(["./utils"], function (utils) {
         if (w < max_resolution || h < max_resolution) { // undefined works
           return IGNORE_CHILDREN; // doesn't count
         }
-        var density = node.count / (w * h);
+        var centroid = centroids["" + extent];
+        var density = compute_density(tree, node, extent, centroid);
         var rel_density = (density - min_density) / (max_density - min_density);
         results.push(
           {
             "extent": extent,
             "density": density,
             "relative_density": rel_density,
-            "centroid": centroids["" + extent],
+            "centroid": centroid,
             "is_leaf": is_leaf,
             "node": node
           }

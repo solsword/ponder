@@ -167,7 +167,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     var transformer = new vw.MultiselectWidget(
       "Apply",
       ["Compute transform: ", " of property "],
-      [["circularize"], inames],
+      [["circularize"], function () { return ds.index_names(data); }],
       undefined,
       function (selected) {
         if (selected[0] == "circularize") {
@@ -180,7 +180,11 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
           );
           console.log(circ);
           circ.apply()
-          LEFT_VIEW.draw();
+          console.log(dataset.indices);
+          // Update controls
+          transformer.put_controls();
+          LEFT_VIEW.put_controls();
+          RIGHT_VIEW.put_controls();
         } else {
           console.log(selected);
           // TODO: HERE

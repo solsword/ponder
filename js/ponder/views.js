@@ -37,12 +37,17 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.label = label;
     this.default_on = default_on;
     this.callback = callback;
+    this.node = undefined;
   }
 
   ToggleWidget.prototype.put_controls = function (node) {
-    var row = node.append("div").attr("class", "controls_row");
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
     var the_widget = this;
-    var select = row.append("input")
+    var select = this.node.append("input")
       .attr("type", "checkbox")
       .on("change", function () {
         if (the_widget.callback) {
@@ -52,7 +57,13 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     if (this.default_on) {
       select.attr("checked", true);
     }
-    row.append("span")
+    var ltext;
+    if (typeof this.label === "function") {
+      ltext = this.label(this);
+    } else {
+      ltext = this.label;
+    }
+    this.node.append("span")
       .attr("class", "label")
       .text(this.label);
   }
@@ -72,22 +83,40 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   ) {
     this.label = label;
     this.options = options;
-    this.default_option = default_option || this.options[0];
+    this.default_option = default_option || undefined;
     this.callback = callback;
+    this.node = undefined;
   }
 
   SelectWidget.prototype.put_controls = function (node) {
-    var row = node.append("div").attr("class", "controls_row");
-    row.text(this.label);
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
+    var ltext;
+    if (typeof this.label === "function") {
+      ltext = this.label(this);
+    } else {
+      ltext = this.label;
+    }
+    this.node.text(this.label);
     var the_widget = this;
-    var select = row.append("select")
+    var opts;
+    if (typeof this.options === "function") {
+      opts = this.options(this);
+    } else {
+      opts = this.options;
+    }
+    var select = this.node.append("select")
       .on("change", function () {
         if (the_widget.callback) {
           the_widget.callback(utils.get_selected_value(this));
         }
       });
+    select.selectAll("option").exit().remove();
     select.selectAll("option")
-      .data(this.options)
+      .data(opts)
     .enter().append("option")
       .attr("value", d => d)
       .text(d => d);
@@ -175,6 +204,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.custom_gradient_start = default_custom_start;
     this.custom_gradient_end = default_custom_end;
     this.callback = callback;
+    this.node = undefined;
 
     if (default_selection == "flat") {
       this.set_color(default_color);
@@ -243,10 +273,14 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   }
 
   ColorWidget.prototype.put_controls = function (node) {
-    var row = node.append("div").attr("class", "controls_row");
-    row.text("Color scale: ");
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
+    this.node.text("Color scale: ");
     // custom option
-    var cs_select = row.append("select");
+    var cs_select = this.node.append("select");
     cs_select.append("option")
       .attr("value", "flat")
       .text("flat");
@@ -289,7 +323,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       .attr("selected", true);
 
     // custom flat color picker
-    var cs_flat = row.append("input")
+    var cs_flat = this.node.append("input")
       .attr("class", "spaced_inline")
       .attr("type", "color")
       .attr("value", this.flat_color);
@@ -299,7 +333,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
 
     // custom gradient color pickers
-    var cs_custom = row.append("span")
+    var cs_custom = this.node.append("span")
       .attr("class", "spaced_inline");
     cs_custom.append("span").text("( ");
     var cg_start = cs_custom.append("input")
@@ -316,7 +350,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
 
     // gradient demo
-    var cs_demo = row.append("span")
+    var cs_demo = this.node.append("span")
       .attr("class", "gradient_demo")
       .style("background", the_widget.get_css_gradient());
 
@@ -385,23 +419,31 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.option_sets = option_sets;
     this.defaults = defaults || [];
     this.callback = callback;
+    this.node = undefined;
   }
 
   MultiselectWidget.prototype.put_controls = function (node) {
-    var row = node.append("div").attr("class", "controls_row");
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
     var the_widget = this;
     for (let i = 0; i < this.option_sets.length; ++i) {
       var lbl = this.labels[i];
+      if (typeof lbl === "function") { lbl = lbl(this); }
       var opts = this.option_sets[i];
+      if (typeof opts === "function") { opts = opts(this); }
       var def = this.defaults[i];
+      if (typeof def === "function") { def = def(this); }
 
       // label
-      row.append("span")
+      this.node.append("span")
         .attr("class", "label")
         .text(lbl);
 
       // select
-      var select = row.append("select")
+      var select = this.node.append("select")
         .attr("class", "multiselect");
 
       // options
@@ -416,14 +458,16 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         .attr("selected", true);
     }
     // The activation button
-    row.append("span").text(" ");
-    row.append("input")
+    this.node.append("span").text(" ");
+    var btext = this.button_text;
+    if (typeof btext === "function") { btext = btext(this); }
+    this.node.append("input")
       .attr("type", "button")
-      .attr("value", this.button_text)
+      .attr("value", btext)
       .on("click touchstart", function () {
         if (the_widget.callback) {
           var values = [];
-          row.selectAll("select").each(function (d) {
+          the_widget.node.selectAll("select").each(function (d) {
             values.push(utils.get_selected_value(this));
           });
           the_widget.callback(values);
@@ -453,9 +497,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.hide_labels = false;
     this.selected = [];
     this.selection_listeners = [];
-
-    var inames = ds.index_names(this.data);
-    // TODO: Need to be able to update these!
+    this.frame = undefined;
+    this.controls_node = undefined;
 
     this.set_x_axis(x_index);
     this.set_y_axis(y_index);
@@ -482,8 +525,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.x_selector = new SelectWidget(
       "X-axis: ",
-      inames,
-      ds.get_name(this.data, this.x_index),
+      function () { return ds.index_names(the_view.data); },
+      function () { return ds.get_name(the_view.data, the_view.x_index); },
       function (iname) {
         the_view.set_x_axis(iname);
         the_view.rebind();
@@ -493,8 +536,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.y_selector = new SelectWidget(
       "Y-axis: ",
-      inames,
-      ds.get_name(this.data, this.y_index),
+      function () { return ds.index_names(the_view.data); },
+      function () { return ds.get_name(the_view.data, the_view.y_index); },
       function (iname) {
         the_view.set_y_axis(iname);
         the_view.rebind();
@@ -504,8 +547,16 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.color_prop_selector = new SelectWidget(
       "Color by: ",
-      ["density (default)"].concat(inames),
-      "density (default)",
+      function () {
+        return ["density (default)"].concat(ds.index_names(the_view.data));
+      },
+      function () {
+        if (the_view.c_index != undefined) {
+          return ds.get_name(the_view.data, the_view.c_index);
+        } else {
+          return "density (default)";
+        }
+      },
       function (iname) {
         if (iname === "density (default)") {
           the_view.set_color_property(undefined);
@@ -526,8 +577,16 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.label_selector = new SelectWidget(
       "Labels: ",
-      ["none"].concat(inames),
-      "none",
+      function () {
+        return ["none"].concat(ds.index_names(the_view.data));
+      },
+      function () {
+        if (the_view.l_index != undefined) {
+          return ds.get_name(the_view.data, the_view.l_index);
+        } else {
+          return "none";
+        }
+      },
       function (iname) {
         if (iname == "none") {
           the_view.set_labels(undefined);
@@ -610,11 +669,15 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Removes the contents of the given DOM node and replaces them with the
-  // controls for this view.
+  // Puts the controls for this view into the given DOM node. After it's been
+  // called once, it will bind to the target node and can be called again
+  // without arguments to update that node.
   LensView.prototype.put_controls = function(node) {
-    node.selectAll("*").remove();
-    var the_view = this;
+    if (node != undefined) {
+      this.controls_node = node;
+    } else {
+      node = this.controls_node;
+    }
     this.labels_toggle.put_controls(node);
     this.mode_toggle.put_controls(node);
 
@@ -941,6 +1004,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.bins = bins;
     this.domain = domain;
     this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
+    this.frame = undefined;
+    this.controls_node = undefined;
 
     this.flags = {
       "force_counts": false,
@@ -956,6 +1021,17 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     // set up widgets:
     var the_view = this;
+
+    this.field_selector = new SelectWidget(
+      "Field: ",
+      function () { return ds.index_names(the_view.data); },
+      function () { return ds.get_name(the_view.data, the_view.field) },
+      function (iname) {
+        the_view.set_field(iname);
+        the_view.compute_counts();
+        the_view.draw();
+      }
+    );
 
     this.sort_toggle = new ToggleWidget(
       "Sort by largest first (otherwise use natural order)",
@@ -992,18 +1068,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       this.flags.normalize,
       function (yes) {
         the_view.flags.normalize = yes;
-        the_view.compute_counts();
-        the_view.draw();
-      }
-    );
-
-    var inames = ds.index_names(this.data);
-    this.field_selector = new SelectWidget(
-      "Field: ",
-      inames,
-      ds.get_name(this.data, this.field),
-      function (iname) {
-        the_view.set_field(iname);
         the_view.compute_counts();
         the_view.draw();
       }
@@ -1211,8 +1275,15 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
+  // Puts the controls for this view into the given DOM node. After it's been
+  // called once, it will bind to the target node and can be called again
+  // without arguments to update that node.
   Histogram.prototype.put_controls = function (node) {
-    node.selectAll("*").remove();
+    if (node != undefined) {
+      this.controls_node = node;
+    } else {
+      node = this.controls_node;
+    }
     this.field_selector.put_controls(node);
     this.sort_toggle.put_controls(node);
     this.count_toggle.put_controls(node);

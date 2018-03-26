@@ -76,7 +76,6 @@ function (utils, prp) {
       dataset.fields.push(name);
       dataset.fmap[name] = dataset.fields.length - 1;
       dataset.types[name] = type;
-      console.log(type);
       var pis = prp.property_indices(name, type);
       for (let i = 0; i < pis.length; ++i) {
         var pi = pis[i];
