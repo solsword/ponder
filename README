@@ -1,16 +1,25 @@
-# Datalens
+# Ponder
 
 Version: pre-alpha
 
 A Javascript + HTML tool for visualizing data interactively.
 
-Reads a JSON list of data items, like so:
+Similar to the R package RadViz.
+
+Use [pre.html](pre.html) to process data for input into the [index.html](index.html) main visualizer.
+
+A JSON array of records, each of which is an array of values is the basic input
+format, with the first record containing strings for field names. CSV import
+will happen at some point. Data might look like:
 
 [
-  { "coords": [ 1.827, 4.483 ], "prop": "val", "otherprop": "otherval" },
+  [ "coords", "prop", "otherprop" ],
+  [ [ 1.827, 4.483 ], "val", "otherval" ],
   ...
 ]
 
-Uses the 'coords' properties of each item to display them in a graph, and
-allows viewing the rest of the properties based on a circular selection cursor
-with various grouping modalities.
+
+Displays each item in a graph, and allows viewing the other properties based on
+a circular selection cursor.
+
+Grouping modalities for secondary display are a work in progress.
