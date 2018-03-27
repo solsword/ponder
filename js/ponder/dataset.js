@@ -2,6 +2,12 @@ define(
 ["./utils", "./properties"],
 function (utils, prp) {
   /*
+   * Module variables
+   */
+
+  var DEFAULT_OUTLIER_ALLOWANCE = 3;
+
+  /*
    * Dataset functions
    */
 
@@ -153,6 +159,11 @@ function (utils, prp) {
   }
 
   function lookup_index(dataset, string) {
+    for (var k in dataset.aliases) {
+      if (dataset.aliases.hasOwnProperty(k) && dataset.aliases[k] == string) {
+        return dataset.imap[k];
+      }
+    }
     return dataset.imap[string];
   }
 
@@ -320,7 +331,13 @@ function (utils, prp) {
   //
   // If the input index doesn't have a domain, the resulting getter will always
   // return 0 and the domain will be [0, 0].
-  function numerical_transform(dataset, index) {
+  //
+  // The optional undefined_as_zero parameter defaults to true, and causes
+  // undefined values to map to zero instead of returning undefined.
+  function numerical_transform(dataset, index, undefined_as_zero) {
+    if (undefined_as_zero == undefined) {
+      undefined_as_zero = true;
+    }
     var dom = get_domain(dataset, index);
     if (dom == undefined) { // give up
       return {
@@ -331,7 +348,7 @@ function (utils, prp) {
       return {
         "getter": function (d) {
           var v = get_field(dataset, d, index);
-          if (v === undefined) {
+          if (v === undefined && undefined_as_zero) {
             return 0;
           } else {
             return v;
@@ -350,6 +367,73 @@ function (utils, prp) {
         "getter": d => vmap[get_field(dataset, d, index)],
         "domain": [ 0, values.length - 1 ]
       };
+    }
+  }
+
+  // Creates and returns an outlier model of the given field, which is an
+  // object with the following properties:
+  //
+  //   mean
+  //     The mean of the numerical transform of the field.
+  //   sd
+  //     The standard deviation of the numerical transform of the field.
+  //   normalized
+  //     A function that, given a record, returns a value between 0 and 1 for
+  //     non-outliers, and values below 0 or above 1 for outliers.
+  //
+  // The model is a simple Gaussian.
+  //
+  // The allowance variable controls how many standard deviations are
+  // considered enough for an item to be an outlier, an defaults to
+  // DEFAULT_OUTLIER_ALLOWANCE.
+  //
+  // The count_missing variable defaults to true and controls whether missing
+  // values are counted as zeros or skipped.
+  //
+  // Reference for incremental variance algorithm:
+  //   https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
+  function outlier_model(dataset, index, allowance, count_missing) {
+    if (allowance == undefined) { allowance = DEFAULT_OUTLIER_ALLOWANCE; }
+    if (count_missing == undefined) { count_missing = true; }
+    var mean = 0;
+    var m2 = 0; // aggregate squared distance from mean
+    var count = 0;
+    var nt = numerical_transform(dataset, index, count_missing);
+    for (let i = 0; i < dataset.records.length; ++i) {
+      var r = dataset.records[i];
+      var val = nt.getter(r);
+      if (val == undefined) {
+        continue;
+      }
+
+      // incremental
+      count += 1;
+      var delta = val - mean;
+      mean += delta / count;
+      var delta2 = val - mean;
+      m2 += delta * delta2;
+    }
+    var variance = m2 / (dataset.records.length - 1);
+    var sd = Math.sqrt(variance);
+
+    var lower = nt.domain[0];
+    var upper = nt.domain[1];
+
+    if (mean - allowance * sd > lower) {
+      lower = mean - allowance * sd;
+    }
+
+    if (mean + allowance * sd < upper) {
+      upper = mean + allowance * sd;
+    }
+
+    return {
+      "mean": mean,
+      "sd": sd,
+      "normalized": function (d) {
+        var val = nt.getter(d);
+        return (val - lower) / (upper - lower);
+      },
     }
   }
 
@@ -440,6 +524,7 @@ function (utils, prp) {
   }
 
   return {
+    "DEFAULT_OUTLIER_ALLOWANCE": DEFAULT_OUTLIER_ALLOWANCE,
     "get_name": get_name,
     "get_record": get_record,
     "get_field": get_field,
@@ -456,6 +541,7 @@ function (utils, prp) {
     "preprocess_data": preprocess_data,
     "missing_keys": missing_keys,
     "numerical_transform": numerical_transform,
+    "outlier_model": outlier_model,
     "vector_transform": vector_transform,
   };
 });

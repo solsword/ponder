@@ -10,6 +10,9 @@ define(["./utils"], function (utils) {
   // visits.
   var IGNORE_CHILDREN = {};
 
+  // Default number of standard deviations before being considered an outlier.
+  var DEFAULT_OUTLIER_ALLOWANCE = 3;
+
   /*
    * Helper functions
    */
@@ -474,7 +477,6 @@ define(["./utils"], function (utils) {
   // back on the count divided by the area of a square the size of the
   // resolution limit of the tree.
   function compute_density(tree, node, extent, centroid) {
-    //console.log(["CD", tree, node, extent, centroid]);
     var density;
     var w = extent[1][0] - extent[0][0];
     var h = extent[1][1] - extent[0][1];
@@ -482,7 +484,6 @@ define(["./utils"], function (utils) {
     var cy = centroid[1];
     if (node.hasOwnProperty("children")) {
       density = node.count / (w * h);
-      //console.log(["CR", node.count, w*h, density]);
     } else {
       var mean_r = 0;
       for (var i = 0; i < node.count; ++i) {
@@ -495,27 +496,32 @@ define(["./utils"], function (utils) {
       var rl = tree.resolution_limit;
       if (mean_r < Math.SQRT2 * rl) {
         density = node.count / (rl * rl);
-        //console.log(["MR0", node.count, rl*rl, density]);
       } else {
         density = node.count / (2 * Math.PI * mean_r * mean_r);
-        /*console.log(
-          ["MR>0", node.count, mean_r, (2*Math.PI*mean_r*mean_r), density]
-        );
-        */
       }
     }
     return density;
   }
 
   // Returns a list of area objects, which contain extent, density, relative
-  // density, centroid, leaf, and quadtree node information. Areas overlap, and
-  // larger (containing) areas come earlier in the list, so that they can be
-  // drawn in order. This method returns one area for each node in the tree.
+  // density, standardized density, centroid, leaf, and quadtree node
+  // information. Areas overlap, and larger (containing) areas come earlier in
+  // the list, so that they can be drawn in order. This method returns one area
+  // for each node in the tree.
+  //
   // The max_resolution argument is optional, but if given, no rectangles
-  // smaller than that in either dimension will be returned. The base_density
-  // is also optional, but if given, it establishes a default base density
-  // value, which will be used as the max density unless a denser region
-  // exists.
+  // smaller than that in either dimension will be returned.
+  //
+  // The base_density is also optional, but if given, it establishes a default
+  // base density value, which will be used as the max density unless a denser
+  // region exists.
+  //
+  // The outlier_allowance value is optional, and will default to
+  // DEFAULT_OUTLIER_ALLOWANCE. It sets the number of standard deviations away
+  // from the mean before a leaf density is considered an outlier. This in turn
+  // is used to set limits on the standardized density that are more
+  // restrictive than those for simple relative density (but which are then
+  // violated by outlier points).
   //
   // TODO: Interactions between max_resolution and density calculations!!!
   // (max-rez-capped nodes may have children & thus use incorrect density
@@ -532,6 +538,7 @@ define(["./utils"], function (utils) {
   //     "extent": [[0, 0], [1, 1]],
   //     "density": 3,
   //     "relative_density": 0.09375,
+  //     "standard_density": 0.09375,
   //     "centroid": [0.7333333333333334, 0.6333333333333333],
   //     "is_leaf": false,
   //     "node": <omitted from example>
@@ -541,6 +548,7 @@ define(["./utils"], function (utils) {
   //     "extent": [[0.5, 0.5], [1, 1]],
   //     "density": 3,
   //     "relative_density": 0.375,
+  //     "standard_density": 0.375,
   //     "centroid": [0.7333333333333334, 0.6333333333333333],
   //     "is_leaf": false,
   //     "node": <omitted from example>
@@ -550,6 +558,7 @@ define(["./utils"], function (utils) {
   //     "extent": [[0.5, 0.5], [0.75, 0.75]],
   //     "density": 1,
   //     "relative_density": 0.5,
+  //     "standard_density": 0.5,
   //     "centroid": [0.6, 0.6],
   //     "is_leaf": true,
   //     "node": <omitted from example>
@@ -558,16 +567,29 @@ define(["./utils"], function (utils) {
   //     "extent": [[0.75, 0.5], [1, 0.75]],
   //     "density": 2,
   //     "relative_density": 1,
+  //     "standard_density": 1,
   //     "centroid": [0.8, 0.65],
   //     "is_leaf": true,
   //     "node": <omitted from example>
   //   }
   // ]
   //
-  function density_areas(tree, max_resolution, base_density, min_as_zero) {
+  function density_areas(
+    tree,
+    max_resolution,
+    base_density,
+    min_as_zero,
+    outlier_allowance
+  ) {
+    if (outlier_allowance == undefined) {
+      outlier_allowance = DEFAULT_OUTLIER_ALLOWANCE;
+    }
     results = [];
     var max_density = base_density;
     var min_density = undefined;
+    var leaf_density_mean = 0;
+    var leaf_density_m2 = 0;
+    var leaf_count = 0;
     var centroids = {};
     // First visit: post-order to determine max density and compute centroids
     visit(
@@ -619,10 +641,40 @@ define(["./utils"], function (utils) {
           if (min_density == undefined || density < min_density) {
             min_density = density;
           }
+
+          if (
+            w/2 < max_resolution
+         || h/2 < max_resolution
+         || !node.hasOwnProperty("children")
+          ) { // it's a natural or forced leaf
+            leaf_count += 1;
+            var delta = density - leaf_density_mean;
+            leaf_density_mean += delta / leaf_count;
+            var delta2 = density - leaf_density_mean;
+            leaf_density_m2 += delta * delta2;
+          }
         } // otherwise skip density calculation
       },
       true // post-order traversal
     );
+
+    var leaf_density_sd = Math.sqrt(leaf_density_m2 / (leaf_count - 1));
+
+    var lower = leaf_density_mean - outlier_allowance * leaf_density_sd;
+    var upper = leaf_density_mean + outlier_allowance * leaf_density_sd;
+
+    var ll = min_density;
+    if (min_as_zero) {
+      ll = 0;
+    }
+    if (ll > lower) {
+      lower = ll;
+    }
+
+    if (max_density < upper) {
+      upper = max_density;
+    }
+
     visit(
       tree,
       function (node, extent) {
@@ -644,11 +696,13 @@ define(["./utils"], function (utils) {
         } else {
           var rel_density = (density-min_density) / (max_density-min_density);
         }
+        var std_density = (density - lower) / (upper - lower);
         results.push(
           {
             "extent": extent,
             "density": density,
             "relative_density": rel_density,
+            "standard_density": std_density,
             "centroid": centroid,
             "is_leaf": is_leaf,
             "node": node

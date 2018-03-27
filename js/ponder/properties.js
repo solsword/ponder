@@ -348,6 +348,9 @@ define(["d3", "./utils"], function (d3, utils) {
 
   // Converts an index into a human-readable string.
   function index__string(index) {
+    if (index == undefined) {
+      return "undefined";
+    }
     var result = "";
     for (var i = 0; i < index.length; ++i) {
       var idx = index[i];

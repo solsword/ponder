@@ -24,8 +24,11 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   var MAX_SHOW_VALUES = 6;
 
   // The current views for the left and right windows
-  var LEFT_VIEW;
-  var RIGHT_VIEW;
+  var LEFT_VIEW = undefined;
+  var RIGHT_VIEW = undefined;
+
+  // The transformation widget
+  var TRANSFORMER = undefined;
 
   // DOM objects
   var LEFT_WINDOW;
@@ -163,7 +166,10 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     var inames = ds.index_names(data);
 
     // extra transform option
-    var transformer = new vw.MultiselectWidget(
+    if (TRANSFORMER != undefined) {
+      TRANSFORMER.node.remove();
+    }
+    TRANSFORMER = new vw.MultiselectWidget(
       "Apply",
       ["Compute transform: ", " of property "],
       [["circularize"], function () { return ds.index_names(data); }],
@@ -178,7 +184,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
           );
           circ.apply()
           // Update controls
-          transformer.put_controls();
+          TRANSFORMER.put_controls();
           LEFT_VIEW.put_controls();
           RIGHT_VIEW.put_controls();
         } else {
@@ -188,9 +194,12 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       }
     );
 
-    transformer.put_controls(d3.select("#top_panel"));
+    TRANSFORMER.put_controls(d3.select("#top_panel"));
 
     // left view
+    if (LEFT_VIEW != undefined) {
+      d3.select("#left_controls").selectAll("*").remove();
+    }
     LEFT_VIEW = new vw.LensView(
       "left",
       data,
@@ -212,6 +221,9 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     }
     if (hdefault === undefined) {
       hdefault = data.indices[0];
+    }
+    if (RIGHT_VIEW != undefined) {
+      d3.select("#right_controls").selectAll("*").remove();
     }
     RIGHT_VIEW = new vw.Histogram(
       "right",

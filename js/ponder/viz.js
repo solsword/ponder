@@ -81,18 +81,19 @@ function (d3, utils, qt, prp) {
   // given as other than undefined, each quadtree node will instead be shaded
   // according to its density. If color_by is defined, then color values will
   // be the result of that function applied to each data point (or averaged
-  // over results for each point within a region). The combination of color_by
-  // and as_rects = true may be slow. Note that when color_by is not given and
-  // as_rects is off, the point size scales slightly with density to somewhat
-  // enhance perceptual accuracy of density among points, although of course
-  // there's still some distortion. This size scaling is disabled when color_by
-  // is given. Use as_rects for a less-biased view of density. The labels
-  // argument can be given to supply labels for each item, but should usually
-  // only be used when the data is sparse. Labels from multiple items are
-  // combined according to a most-frequent scheme, and an asterisk is appended
-  // if the labels being combined aren't all identical. If there's a tie for
-  // most-frequent, just an asterisk is used. Labels are ignored completely
-  // when as_rects is true.
+  // over results for each point within a region). The special values "density"
+  // and "standardized" will use relative or standardized density values from
+  // the tree. The combination of color_by and as_rects = true may be slow.
+  // Note that when color_by is not given and as_rects is off, the point size
+  // scales slightly with density to somewhat enhance perceptual accuracy of
+  // density among points, although of course there's still some distortion.
+  // This size scaling is disabled when color_by is given. Use as_rects for a
+  // less-biased view of density. The labels argument can be given to supply
+  // labels for each item, but should usually only be used when the data is
+  // sparse. Labels from multiple items are combined according to a
+  // most-frequent scheme, and an asterisk is appended if the labels being
+  // combined aren't all identical. If there's a tie for most-frequent, just an
+  // asterisk is used. Labels are ignored completely when as_rects is true.
   function draw_quadtree(
     element,
     tree,
@@ -108,6 +109,10 @@ function (d3, utils, qt, prp) {
 
     if (min_resolution === undefined) {
       min_resolution = DEFAULT_MIN_RESOLUTION;
+    }
+
+    if (color_by === undefined) {
+      color_by = "density";
     }
 
     var base_density;
@@ -131,9 +136,13 @@ function (d3, utils, qt, prp) {
     );
 
     if (as_rects) { // shade density over rectangles
-      if (color_by === undefined) {
+      if (color_by === "density") {
         function color_for(d) {
           return color_scale(d.relative_density);
+        }
+      } else if (color_by === "standardized") {
+        function color_for(d) {
+          return color_scale(d.standard_density);
         }
       } else {
         var color_values_cache = qt.local_values(
@@ -177,14 +186,13 @@ function (d3, utils, qt, prp) {
       element.selectAll("rect").remove();
 
       // figure out coloring
-      if (color_by === undefined) {
+      if (color_by === "density") {
         function color_for(d) {
           return color_scale(d.relative_density);
         }
-        function radius_of(d) {
-          // TODO: Decide
-          //return QT_POINT_RADIUS * (1 + d.relative_density);
-          return QT_POINT_RADIUS;
+      } else if (color_by === "standardized") {
+        function color_for(d) {
+          return color_scale(d.standard_density);
         }
       } else {
         function color_for(d) {
@@ -196,7 +204,6 @@ function (d3, utils, qt, prp) {
           c /= items.length;
           return color_scale(c);
         }
-        var radius_of = QT_POINT_RADIUS;
       }
 
       // Just the leaves
@@ -209,7 +216,7 @@ function (d3, utils, qt, prp) {
         .attr("class", "point")
         .attr("cx", d => d.centroid[0] || 0)
         .attr("cy", d => d.centroid[1] || 0)
-        .attr("r", radius_of)
+        .attr("r", QT_POINT_RADIUS)
         .attr("fill", color_for);
 
       if (labels != undefined) {

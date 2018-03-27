@@ -47,6 +47,7 @@ a:active {
 }
 
 #layout td {
+  vertical-align: top;
   padding: 0.5%;
 }
 

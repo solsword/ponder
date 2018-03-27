@@ -129,6 +129,47 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // ColorWidget //
   /////////////////
 
+  // A color selection widget that just selects a single color. The callback
+  // will be called with the color selected (an HTML RGB string) as the first
+  // argument and the entire widget as the second argument.
+  function ColorWidget(label, default_color, callback) {
+    this.label = label;
+    this.callback = callback;
+    this.color = undefined;
+    this.node = undefined;
+
+    this.set_color(default_color);
+  }
+
+  // Sets the color function for the widget.
+  ColorWidget.prototype.set_color = function(color) {
+    this.color = color;
+  }
+
+  // Adds the widget to a node.
+  ColorWidget.prototype.put_controls = function (node) {
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
+    this.node.text(this.label);
+    // custom flat color picker
+    var the_widget = this;
+    this.node.append("input")
+      .attr("class", "spaced_inline")
+      .attr("type", "color")
+      .attr("value", this.color)
+    .on("change", function () {
+      the_widget.set_color(this.value);
+      if (the_widget.callback) { the_widget.callback(this.value, the_widget); }
+    });
+  }
+
+  //////////////////////
+  // ColorScaleWidget //
+  //////////////////////
+
   // Available preset color schemes & gradients:
   // TODO: Return 0--1 shifted divided gradients instead of integer schemes!
   var CAT_SCHEMES = {
@@ -192,7 +233,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // input on the added controls, and supply a color interpolation function. A
   // callback may be supplied which will be called with the widget as an
   // argument whenever the user changes the color or gradient selected.
-  function ColorWidget(
+  function ColorScaleWidget(
     default_selection,
     default_color,
     default_custom_start,
@@ -217,8 +258,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
   // Sets the color function for the widget. The special value "custom" can be
   // used to fall back to a gradient between the default custom start/end.
-  ColorWidget.prototype.set_color = function(color) {
-    this.color = color;
+  ColorScaleWidget.prototype.set_color = function(color) {
     if (color === "custom") {
       this.color = d3.interpolateCubehelix(
         this.custom_gradient_start,
@@ -231,7 +271,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
   // Get the domain of the color gradient function for this widget. Returned as
   // an array of start/end numbers.
-  ColorWidget.prototype.get_domain = function () {
+  ColorScaleWidget.prototype.get_domain = function () {
     if (typeof this.color === "string") {
       return [ 0, 0 ];
     } else if (Array.isArray(this.color)) {
@@ -242,7 +282,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   }
 
   // Extracts a gradient function 
-  ColorWidget.prototype.get_gradient = function () {
+  ColorScaleWidget.prototype.get_gradient = function () {
     if (typeof this.color === "string") {
       return x => this.color;
     } else if (Array.isArray(this.color)) {
@@ -262,7 +302,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   }
 
   // Extracts a CSS background style property
-  ColorWidget.prototype.get_css_gradient = function () {
+  ColorScaleWidget.prototype.get_css_gradient = function () {
     if (typeof this.color === "string") {
       return this.color;
     } else if (Array.isArray(this.color)) {
@@ -272,7 +312,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  ColorWidget.prototype.put_controls = function (node) {
+  ColorScaleWidget.prototype.put_controls = function (node) {
     if (this.node == undefined) {
       this.node = node.append("div").attr("class", "controls_row");
     } else {
@@ -499,6 +539,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.selection_listeners = [];
     this.frame = undefined;
     this.controls_node = undefined;
+    this.separate_outliers = true;
 
     this.set_x_axis(x_index);
     this.set_y_axis(y_index);
@@ -578,11 +619,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     );
 
-    this.color_widget = new ColorWidget(
+    this.color_widget = new ColorScaleWidget(
       "custom",
       "#000",
-      "#f0e8c8",
-      "#631200",
+      "#a8ff00",
+      "#303850",
       function () { the_view.draw(); }
     );
 
@@ -606,6 +647,28 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         }
         the_view.draw();
       }
+    );
+
+    this.outliers_toggle = new ToggleWidget(
+      "Color outliers separately",
+      true,
+      function (yes) {
+        the_view.separate_outliers = yes;
+        if (the_view.c_index == undefined) {
+          if (yes) {
+            the_view.c_value = "standardized";
+          } else {
+            the_view.c_value = "density";
+          }
+        }
+        the_view.draw(); // redraw
+      }
+    );
+
+    this.outlier_color_widget = new ColorWidget(
+      "Outlier color:",
+      "#cc77ff",
+      function (color) { the_view.draw(); }
     );
   }
 
@@ -692,10 +755,12 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     this.color_prop_selector.put_controls(node);
 
-    // color scale select
     this.color_widget.put_controls(node);
 
     this.label_selector.put_controls(node);
+
+    this.outliers_toggle.put_controls(node);
+    this.outlier_color_widget.put_controls(node);
   }
 
   // Draws the given view into its bound frame (see bind_frame). Also sets up
@@ -713,10 +778,19 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       .attr("id", "qt_density")
       .attr("class", "density_plot");
 
+    var the_view = this;
+
     viz.draw_quadtree(
       dplot,
       this.tree,
-      this.color_widget.get_gradient(),
+      function (v) {
+        var dom = the_view.color_widget.get_domain();
+        if (dom[0] <= v && v <= dom[1]) {
+          return the_view.color_widget.get_gradient()(v);
+        } else {
+          return the_view.outlier_color_widget.color
+        }
+      },
       this.resolution,
       this.show_density,
       this.c_value,
@@ -898,11 +972,24 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
     this.c_index = c_index;
     if (c_index != undefined) {
-      var nt = ds.numerical_transform(this.data, c_index);
-      this.c_value =
-        d => (nt.getter(d) - nt.domain[0]) / (nt.domain[1] - nt.domain[0]);
+      if (this.separate_outliers) {
+        var om = ds.outlier_model(this.data, c_index);
+        console.log([om.mean, om.sd]);
+        this.c_value = function (d) {
+          return om.normalized(d);
+        };
+      } else {
+        var nt = ds.numerical_transform(this.data, c_index);
+        this.c_value = function (d) {
+          return (nt.getter(d) - nt.domain[0]) / (nt.domain[1] - nt.domain[0]);
+        };
+      }
     } else {
-      this.c_value = undefined;
+      if (this.separate_outliers) {
+        this.c_value = "standardized";
+      } else {
+        this.c_value = "density";
+      }
     }
   }
 
@@ -1087,7 +1174,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     );
 
-    this.color_widget = new ColorWidget(
+    this.color_widget = new ColorScaleWidget(
       "flat",
       "#6688cc",
       "#f0e8c8",
@@ -1150,7 +1237,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       } else {
         dom = this.domain;
       }
-      this.domain = dom;
       var bs = (dom[1] - dom[0]) / bins;
       var bin_names = [];
       for (let i = 0; i < bins; ++i) {
@@ -1354,7 +1440,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   return {
     "ToggleWidget": ToggleWidget,
     "SelectWidget": SelectWidget,
-    "ColorWidget": ColorWidget,
+    "ColorScaleWidget": ColorScaleWidget,
     "MultiselectWidget": MultiselectWidget,
     "LensView": LensView,
     "Histogram": Histogram,
