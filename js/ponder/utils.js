@@ -366,6 +366,26 @@ define(["d3"], function (d3) {
     return result;
   }
 
+  // Takes a string that starts and ends with quote characters and returns the
+  // raw string, unescaping any escaped backslashes and/or quotes inside.
+  function unquote(string) {
+    var qc = string[0];
+    var inner = string.slice(1, string.length - 1);
+    var result = new Array(inner.length);
+    for (let i = 0; i < inner.length; ++i) {
+      if (inner[i] == "\\" && inner[i+1] == qc) {
+        result.push(qc);
+        i += 1;
+      } else if (inner[i] == "\\" && inner[i+1] == "\\") {
+        result.push("\\");
+        i += 1;
+      } else {
+        result.push(inner[i]);
+      }
+    }
+    return result.join("");
+  }
+
   return {
     "EPSILON": EPSILON,
     "posmod": posmod,
@@ -382,5 +402,6 @@ define(["d3"], function (d3) {
     "css_gradient": css_gradient,
     "css_scheme": css_scheme,
     "normalize_vector": normalize_vector,
+    "unquote": unquote,
   };
 });

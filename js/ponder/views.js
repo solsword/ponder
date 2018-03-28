@@ -274,8 +274,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   ColorScaleWidget.prototype.get_domain = function () {
     if (typeof this.color === "string") {
       return [ 0, 0 ];
-    } else if (Array.isArray(this.color)) {
-      return [ 0, this.color.length - 1 ];
     } else {
       return [ 0, 1 ];
     }
@@ -288,8 +286,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     } else if (Array.isArray(this.color)) {
       var the_widget = this;
       return function (t) {
-        var i = Math.floor(t);
-        // TODO: Cycle instead of clamp?
+        var i = Math.floor(the_widget.color.length * t);
         if (i < 0) { i = 0; }
         if (i > the_widget.color.length - 1) {
           i = the_widget.color.length - 1;
@@ -974,7 +971,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     if (c_index != undefined) {
       if (this.separate_outliers) {
         var om = ds.outlier_model(this.data, c_index);
-        console.log([om.mean, om.sd]);
         this.c_value = function (d) {
           return om.normalized(d);
         };

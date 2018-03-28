@@ -79,8 +79,11 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       var fr = new FileReader();
       fr.onload = function (e) {
         var file_text = e.target.result;
-        // TODO: Multiple formats?!?
-        var json = JSON.parse(file_text);
+        try {
+          var json = JSON.parse(file_text);
+        } catch (error) {
+          var json = { "error": true };
+        }
         populate_data(json);
       };
       fr.readAsText(first);
@@ -95,10 +98,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       var first = files[0];
       var fr = new FileReader();
       fr.onload = function (e) {
-        var file_text = e.target.result;
-        // TODO: Multiple formats?!?
-        var json = JSON.parse(file_text);
-        preprocess_data(json);
+        preprocess_data(e.target.result);
       };
       fr.readAsText(first);
     }
@@ -172,7 +172,17 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     TRANSFORMER = new vw.MultiselectWidget(
       "Apply",
       ["Compute transform: ", " of property "],
-      [["circularize"], function () { return ds.index_names(data); }],
+      [["circularize"], function () {
+        var inames = ds.index_names(data);
+        var result = [];
+        for (let i = 0; i < inames.length; ++i) {
+          var inm = inames[i];
+          if (tf.Circularize.applicable_to(data, ds.lookup_index(data, inm))) {
+            result.push(inm);
+          }
+        }
+        return result;
+      }],
       undefined,
       function (selected) {
         if (selected[0] == "circularize") {
@@ -244,12 +254,19 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     });
   }
 
-  function preprocess_data(data) {
+  function preprocess_data(raw_data) {
     var np = d3.select("#names_panel");
     np.select("#loading_message").style("display", "block");
 
     window.setTimeout(function () {
-      var dataset = ds.preprocess_data(data);
+      try {
+        var json = JSON.parse(raw_data);
+      } catch (error) {
+        var sep = ds.guess_sep(raw_data);
+        var json = ds.gulp_csv(raw_data, sep);
+      }
+
+      var dataset = ds.preprocess_data(json);
 
       var ntb = np.select("table>tbody");
       ntb.selectAll("tr").exit().remove();

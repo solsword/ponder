@@ -214,6 +214,113 @@ function (utils, prp) {
    * Processing functions
    */
 
+  // Helper function that processes a CSV field from a raw string into a value.
+  function process_csv_field(raw) {
+    var fv = raw;
+
+    // check if it's quoted and unquote if it is
+    var quoted = false;
+    if (fv[0] == '"') {
+      fv = utils.unqote(fv)
+      quoted = true;
+    }
+
+    // convert empty fields and numbers
+    if (!quoted && fv == "") { // convert empty strings to undefined
+      fv = undefined;
+    } else if (!quoted) {
+      // try to convert to a number
+      var n = +fv;
+      if (!Number.isNaN(n)) {
+        fv = n;
+      }
+    }
+
+    return fv;
+  }
+
+  // Guesses a separator character for the given string. If it doesn't find any
+  // of the possible separator characters before encountering a newline (or the
+  // end of the string) it just returns newline.
+  function guess_sep(string) {
+    var look_for = "\t,|:/\\.+ -_*#@!$%^&~`";
+    var found = [];
+    for (let i = 0; i < string.length; ++i) {
+      if (string[i] == "\n") {
+        break;
+      } else {
+        var idx = look_for.indexOf(string[i])
+        if (idx >= 0) {
+          found[idx] = true;
+        }
+      }
+    }
+    for (let i = 0; i < look_for.length; ++i) {
+      if (found[i]) {
+        return look_for[i];
+      }
+    }
+    return "\n";
+   }
+
+  // Transforms a string containing the data from a CSV file into a JSON array
+  // suitable for passing into the preprocess_data function. Sep indicates the
+  // separator character, which defaults to ',' (it must be a single
+  // character). Entries that can be are converted to numbers, and blanks are
+  // converted to undefined. Empty strings can be given using a pair of double
+  // quotes. Any field that starts with a double quote as the first character
+  // is considered a quoted field, and will not be converted to either
+  // undefined or a numeric value, but the quotes will be removed and any
+  // escaped quotes or backslashes inside will be unescaped.
+  function gulp_csv(string, sep) {
+    if (sep == undefined) {
+      sep = ",";
+    }
+
+    if (sep == "\\") {
+      sep = "\\\\";
+    }
+    var restring = (
+      "(\"(\\\\\"|[^\"])*\"[" + sep + "\n])" // a quoted field
+    + "|([^" + sep + "\n]*[" + sep + "\n])" // or an unquoted field
+    );
+
+    var fieldre = new RegExp(restring);
+
+    // row results
+    var rows = [];
+    var row = [];
+    rows.push(row);
+
+    var m = fieldre.exec(string);
+    while (m != null) {
+      var ms = m[0]; // match string
+      var ml = ms.length; // match length
+      // chop off the match
+      string = string.slice(ml);
+
+      // find the field value
+      var fv = process_csv_field(ms.slice(0, ml-1));
+
+      // push our value onto the current row
+      row.push(fv);
+
+      // if this field ends its row, create a new row for further values
+      if (ms[ml-1] == "\n") {
+        row = [];
+        rows.push(row);
+      }
+
+      // find the next match
+      m = fieldre.exec(string);
+    }
+    // one last value: the remainder of the string up to EOF
+    fv = process_csv_field(string);
+    row.push(fv);
+
+    return rows;
+  }
+
   // Takes in data as either an array of records (including a one-row header
   // for field names) or a partially-complete data object with at least
   // 'fields' and 'records' defined. Returns a completed data object with the
@@ -538,6 +645,9 @@ function (utils, prp) {
     "aliased_indices": aliased_indices,
     "index_names": index_names,
     "nth_of_kind": nth_of_kind,
+    "process_csv_field": process_csv_field,
+    "guess_sep": guess_sep,
+    "gulp_csv": gulp_csv,
     "preprocess_data": preprocess_data,
     "missing_keys": missing_keys,
     "numerical_transform": numerical_transform,
