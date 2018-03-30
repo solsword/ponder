@@ -3,8 +3,10 @@ define(["d3", "./utils"], function (d3, utils) {
    * Helper functions
    */
 
-  // Number formatter with variable precision based on number magnitude
-  function format_number(n) {
+  // Number formatter with variable precision based on number magnitude. The
+  // optional nan_subst argument will be returned for NaN arguments (the
+  // default is the string "NaN").
+  function format_number(n, nan_subst) {
     if (Number.isInteger(n)) {
       if (n < 100000) {
         return n;
@@ -22,7 +24,7 @@ define(["d3", "./utils"], function (d3, utils) {
         return n.toPrecision(3);
       }
     } else {
-      return "NaN";
+      return nan_subst || "NaN";
     }
   }
 

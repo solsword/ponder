@@ -512,6 +512,56 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       });
   }
 
+  //////////////////
+  // Generic View //
+  //////////////////
+
+  function View(id, dataset, controls) {
+    this.id = id;
+    this.data = dataset;
+    this.controls = controls || [];
+    this.frame = undefined;
+    this.controls_node = undefined;
+  }
+
+  // default does nothing
+  View.prototype.update_size = function(fw, fh) {}
+
+  // bind to a frame
+  View.prototype.bind_frame = function(frame) {
+    this.frame = frame;
+
+    var fw = utils.get_width(frame);
+    var fh = utils.get_height(frame);
+
+    this.update_size(fw, fh);
+  }
+
+  // re-bind to an already bound frame
+  View.prototype.rebind = function () {
+    if (this.frame === undefined) {
+      console.error("Can't rebind an unbound view!");
+      console.error(this);
+    } else {
+      this.bind_frame(this.frame);
+    }
+  }
+
+  // put our controls somewhere
+  View.prototype.put_controls = function(node) {
+    if (node != undefined) {
+      this.controls_node = node;
+    } else {
+      node = this.controls_node;
+    }
+    for (let i = 0; i < this.controls.length; ++i) {
+      this.controls[i].put_controls(node);
+    }
+  }
+
+  // default does nothing
+  View.prototype.draw = function() {}
+
   //////////////
   // LensView //
   //////////////
@@ -528,14 +578,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // be drawn or its controls can be used, and if the x_index or y_index
   // weren't given, they need to be set first.
   function LensView(id, dataset, x_index, y_index) {
-    this.id = id;
-    this.data = dataset;
+    View.call(this, id, dataset);
     this.show_density = false;
     this.hide_labels = false;
     this.selected = [];
     this.selection_listeners = [];
-    this.frame = undefined;
-    this.controls_node = undefined;
     this.separate_outliers = true;
 
     this.set_x_axis(x_index);
@@ -543,77 +590,89 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
 
     var the_view = this;
 
-    this.labels_toggle = new ToggleWidget(
-      "Hide selection count & axis labels",
-      false,
-      function (yes) {
-        the_view.hide_labels = yes;
-        the_view.draw(); // redraw
-      }
-    );
-
-    this.mode_toggle = new ToggleWidget(
-      "Show point approximation (instead of density)",
-      true,
-      function (yes) {
-        the_view.show_density = !yes;
-        the_view.draw(); // redraw
-      }
-    );
-
-    this.res_selector = new SelectWidget(
-      "Resolution: ",
-      [2, 4, 8, 16, 32, 64],
-      DEFAULT_RESOLUTION,
-      function (value) {
-        the_view.set_resolution(Number.parseInt(value));
-        the_view.rebind();
-        the_view.draw();
-      }
-    );
-
-    this.x_selector = new SelectWidget(
-      "X-axis: ",
-      function () { return ds.index_names(the_view.data); },
-      function () { return ds.get_name(the_view.data, the_view.x_index); },
-      function (iname) {
-        the_view.set_x_axis(iname);
-        the_view.rebind();
-        the_view.draw();
-      }
-    );
-
-    this.y_selector = new SelectWidget(
-      "Y-axis: ",
-      function () { return ds.index_names(the_view.data); },
-      function () { return ds.get_name(the_view.data, the_view.y_index); },
-      function (iname) {
-        the_view.set_y_axis(iname);
-        the_view.rebind();
-        the_view.draw();
-      }
-    );
-
-    this.color_prop_selector = new SelectWidget(
-      "Color by: ",
-      function () {
-        return ["density (default)"].concat(ds.index_names(the_view.data));
-      },
-      function () {
-        if (the_view.c_index != undefined) {
-          return ds.get_name(the_view.data, the_view.c_index);
-        } else {
-          return "density (default)";
+    this.controls.push(
+      new ToggleWidget(
+        "Hide selection count & axis labels",
+        false,
+        function (yes) {
+          the_view.hide_labels = yes;
+          the_view.draw(); // redraw
         }
-      },
-      function (iname) {
-        if (iname === "density (default)") {
-          the_view.set_color_property(undefined);
-        } else {
-          the_view.set_color_property(iname);
+      )
+    );
+
+    this.controls.push(
+      new ToggleWidget(
+        "Show point approximation (instead of density)",
+        true,
+        function (yes) {
+          the_view.show_density = !yes;
+          the_view.draw(); // redraw
         }
-        the_view.draw();
-      }
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "Resolution: ",
+        [2, 4, 8, 16, 32, 64],
+        DEFAULT_RESOLUTION,
+        function (value) {
+          the_view.set_resolution(Number.parseInt(value));
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "X-axis: ",
+        function () { return ds.index_names(the_view.data); },
+        function () { return ds.get_name(the_view.data, the_view.x_index); },
+        function (iname) {
+          the_view.set_x_axis(iname);
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "Y-axis: ",
+        function () { return ds.index_names(the_view.data); },
+        function () { return ds.get_name(the_view.data, the_view.y_index); },
+        function (iname) {
+          the_view.set_y_axis(iname);
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "Color by: ",
+        function () {
+          return ["density (default)"].concat(ds.index_names(the_view.data));
+        },
+        function () {
+          if (the_view.c_index != undefined) {
+            return ds.get_name(the_view.data, the_view.c_index);
+          } else {
+            return "density (default)";
+          }
+        },
+        function (iname) {
+          if (iname === "density (default)") {
+            the_view.set_color_property(undefined);
+          } else {
+            the_view.set_color_property(iname);
+          }
+          the_view.draw();
+        }
+      )
     );
 
     this.color_widget = new ColorScaleWidget(
@@ -623,43 +682,48 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       "#303850",
       function () { the_view.draw(); }
     );
+    this.controls.push(this.color_widget);
 
-    this.label_selector = new SelectWidget(
-      "Labels: ",
-      function () {
-        return ["none"].concat(ds.index_names(the_view.data));
-      },
-      function () {
-        if (the_view.l_index != undefined) {
-          return ds.get_name(the_view.data, the_view.l_index);
-        } else {
-          return "none";
+    this.controls.push(
+      new SelectWidget(
+        "Labels: ",
+        function () {
+          return ["none"].concat(ds.index_names(the_view.data));
+        },
+        function () {
+          if (the_view.l_index != undefined) {
+            return ds.get_name(the_view.data, the_view.l_index);
+          } else {
+            return "none";
+          }
+        },
+        function (iname) {
+          if (iname == "none") {
+            the_view.set_labels(undefined);
+          } else {
+            the_view.set_labels(iname);
+          }
+          the_view.draw();
         }
-      },
-      function (iname) {
-        if (iname == "none") {
-          the_view.set_labels(undefined);
-        } else {
-          the_view.set_labels(iname);
-        }
-        the_view.draw();
-      }
+      )
     );
 
-    this.outliers_toggle = new ToggleWidget(
-      "Color outliers separately",
-      true,
-      function (yes) {
-        the_view.separate_outliers = yes;
-        if (the_view.c_index == undefined) {
-          if (yes) {
-            the_view.c_value = "standardized";
-          } else {
-            the_view.c_value = "density";
+    this.controls.push(
+      new ToggleWidget(
+        "Color outliers separately",
+        true,
+        function (yes) {
+          the_view.separate_outliers = yes;
+          if (the_view.c_index == undefined) {
+            if (yes) {
+              the_view.c_value = "standardized";
+            } else {
+              the_view.c_value = "density";
+            }
           }
+          the_view.draw(); // redraw
         }
-        the_view.draw(); // redraw
-      }
+      )
     );
 
     this.outlier_color_widget = new ColorWidget(
@@ -667,23 +731,15 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       "#cc77ff",
       function (color) { the_view.draw(); }
     );
+    this.controls.push(this.outlier_color_widget);
   }
 
+  LensView.prototype = Object.create(View.prototype);
+  LensView.prototype.constructor = LensView;
 
-  // Binds the given view to the given frame, setting up variables required to
-  // draw the view, which will be drawn into the given frame when draw()
-  // is called. If the frame changes size, this function can safely be called
-  // again to update the view (and then draw should also be called again).
-  // If not given, the min_resolution parameter (which controls the minimum
-  // size of a quadtree cell in SVG units ~= screen pixels) will use the
-  // existing resolution if one has already been specified or
-  // DEFAULT_RESOLUTION if not.
-  LensView.prototype.bind_frame = function(frame) {
-    this.frame = frame;
 
-    var fw = utils.get_width(frame);
-    var fh = utils.get_height(frame);
-
+  // Updates the size; called when the frame is (re)bound.
+  LensView.prototype.update_size = function(fw, fh) {
     var xr = this.x_domain[1] - this.x_domain[0];
     var yr = this.y_domain[1] - this.y_domain[0];
     if (xr == 0) { xr = 1; }
@@ -722,42 +778,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.shadow = { "x": fw/2, "y": fh/2, "r": 20, "node": undefined };
 
     this.update_selection();
-  }
-
-  // Rebinds a view to the same frame it's already bound to.
-  LensView.prototype.rebind = function() {
-    if (this.frame === undefined) {
-      console.error("Can't rebind an unbound view!");
-      console.error(this);
-    } else {
-      this.bind_frame(this.frame);
-    }
-  }
-
-  // Puts the controls for this view into the given DOM node. After it's been
-  // called once, it will bind to the target node and can be called again
-  // without arguments to update that node.
-  LensView.prototype.put_controls = function(node) {
-    if (node != undefined) {
-      this.controls_node = node;
-    } else {
-      node = this.controls_node;
-    }
-    this.labels_toggle.put_controls(node);
-    this.mode_toggle.put_controls(node);
-
-    this.res_selector.put_controls(node);
-    this.x_selector.put_controls(node);
-    this.y_selector.put_controls(node);
-
-    this.color_prop_selector.put_controls(node);
-
-    this.color_widget.put_controls(node);
-
-    this.label_selector.put_controls(node);
-
-    this.outliers_toggle.put_controls(node);
-    this.outlier_color_widget.put_controls(node);
   }
 
   // Draws the given view into its bound frame (see bind_frame). Also sets up
@@ -1095,14 +1115,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     domain,
     bar_limit
   ) {
-    this.id = id;
-    this.data = dataset;
+    View.call(this, id, dataset);
     this.records = records;
     this.bins = bins;
     this.domain = domain;
     this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
-    this.frame = undefined;
-    this.controls_node = undefined;
 
     this.flags = {
       "force_counts": false,
@@ -1119,55 +1136,65 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     // set up widgets:
     var the_view = this;
 
-    this.field_selector = new SelectWidget(
-      "Field: ",
-      function () { return ds.index_names(the_view.data); },
-      function () { return ds.get_name(the_view.data, the_view.field) },
-      function (iname) {
-        the_view.set_field(iname);
-        the_view.compute_counts();
-        the_view.draw();
-      }
+    this.controls.push(
+      new SelectWidget(
+        "Field: ",
+        function () { return ds.index_names(the_view.data); },
+        function () { return ds.get_name(the_view.data, the_view.field) },
+        function (iname) {
+          the_view.set_field(iname);
+          the_view.compute_counts();
+          the_view.draw();
+        }
+      )
     );
 
-    this.sort_toggle = new ToggleWidget(
-      "Sort by largest first (otherwise use natural order)",
-      this.flags.sort,
-      function (yes) {
-        the_view.flags.sort = yes;
-        the_view.compute_counts();
-        the_view.draw();
-      }
+    this.controls.push(
+      new ToggleWidget(
+        "Sort by largest first (otherwise use natural order)",
+        this.flags.sort,
+        function (yes) {
+          the_view.flags.sort = yes;
+          the_view.compute_counts();
+          the_view.draw();
+        }
+      )
     )
 
-    this.count_toggle = new ToggleWidget(
-      "Count non-zero/non-missing values (even when values could be summed)",
-      this.flags.force_counts,
-      function (yes) {
-        the_view.flags.force_counts = yes;
-        the_view.compute_counts();
-        the_view.draw();
-      }
+    this.controls.push(
+      new ToggleWidget(
+        "Count non-zero/non-missing values (even when values could be summed)",
+        this.flags.force_counts,
+        function (yes) {
+          the_view.flags.force_counts = yes;
+          the_view.compute_counts();
+          the_view.draw();
+        }
+      )
     );
 
-    this.average_toggle = new ToggleWidget(
-      "Average values in bins (instead of summing them)",
-      this.flags.average,
-      function (yes) {
-        the_view.flags.average = yes;
-        the_view.compute_counts();
-        the_view.draw();
-      }
+    this.controls.push(
+      new ToggleWidget(
+        "Average values in bins (instead of summing them)",
+        this.flags.average,
+        function (yes) {
+          the_view.flags.average = yes;
+          the_view.compute_counts();
+          the_view.draw();
+        }
+      )
     );
 
-    this.normalize_toggle = new ToggleWidget(
-      "Normalzie values (relative to largest)",
-      this.flags.normalize,
-      function (yes) {
-        the_view.flags.normalize = yes;
-        the_view.compute_counts();
-        the_view.draw();
-      }
+    this.controls.push(
+      new ToggleWidget(
+        "Normalzie values (relative to largest)",
+        this.flags.normalize,
+        function (yes) {
+          the_view.flags.normalize = yes;
+          the_view.compute_counts();
+          the_view.draw();
+        }
+      )
     );
 
     this.color_widget = new ColorScaleWidget(
@@ -1177,7 +1204,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       "#631200",
       function () { the_view.draw(); }
     );
+    this.controls.push(this.color_widget);
   }
+
+  Histogram.prototype = Object.create(View.prototype);
+  Histogram.prototype.constructor = Histogram;
 
   // Reassigns the field for this histogram. compute_counts should be called
   // afterwards.
@@ -1301,8 +1332,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     } else if (ft.kind === "tensor") {
       // TODO: HERE?!
-      console.log("Unknown tensor type");
-      console.log(ft);
+      console.warn("Unknown tensor type");
+      console.warn(ft);
     } else if (ft.kind === "map") {
       var all_numeric = true;
       for (var k in ft.subtypes) {
@@ -1370,21 +1401,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Binds this histogram to a frame
-  Histogram.prototype.bind_frame = function (frame) {
-    this.frame = frame;
-  }
-
-  // Rebind to the existing frame
-  Histogram.prototype.rebind = function() {
-    if (this.frame === undefined) {
-      console.error("Can't rebind an unbound view!");
-      console.error(this);
-    } else {
-      this.bind_frame(this.frame);
-    }
-  }
-
   Histogram.prototype.draw = function() {
     // Reset the frame:
     this.frame.selectAll("*").remove();
@@ -1416,29 +1432,247 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Puts the controls for this view into the given DOM node. After it's been
-  // called once, it will bind to the target node and can be called again
-  // without arguments to update that node.
-  Histogram.prototype.put_controls = function (node) {
-    if (node != undefined) {
-      this.controls_node = node;
-    } else {
-      node = this.controls_node;
-    }
-    this.field_selector.put_controls(node);
-    this.sort_toggle.put_controls(node);
-    this.count_toggle.put_controls(node);
-    this.average_toggle.put_controls(node);
-    this.normalize_toggle.put_controls(node);
-    this.color_widget.put_controls(node);
+  ////////////
+  // Matrix //
+  ////////////
+
+  function Matrix(id, dataset, records, cols_field, rows_field, vals_field) {
+    View.call(this, id, dataset);
+    this.records = records || this.data.records;
+
+    this.set_cols(cols_field);
+    this.set_rows(rows_field);
+    this.set_value(vals_field);
+
+    this.compute_matrix();
+
+    var the_view = this;
+
+    this.controls.push(
+      new SelectWidget(
+        "Rows: ",
+        function () { return ["none"].concat(ds.index_names(the_view.data)); },
+        function () { return ds.get_name(the_view.data, the_view.rows_field); },
+        function (iname) {
+          if (iname == "none") {
+            the_view.set_rows(undefined);
+          } else {
+            the_view.set_rows(iname);
+          }
+          the_view.compute_matrix();
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "Columns: ",
+        function () { return ["none"].concat(ds.index_names(the_view.data)); },
+        function () { return ds.get_name(the_view.data, the_view.cols_field); },
+        function (iname) {
+          if (iname == "none") {
+            the_view.set_cols(undefined);
+          } else {
+            the_view.set_cols(iname);
+          }
+          the_view.compute_matrix();
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "Value: ",
+        function () { return ds.index_names(the_view.data); },
+        function () { return ds.get_name(the_view.data, the_view.vals_field); },
+        function (iname) {
+          the_view.set_value(iname);
+          the_view.compute_matrix();
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.controls.push(
+    );
+
+    this.color_scale_widget = new ColorScaleWidget(
+      "custom",
+      "#6688cc",
+      "#ffd1fe",
+      "#ffdf00",
+      function () { the_view.draw(); }
+    );
+    this.controls.push(this.color_scale_widget);
+
+    this.label_color_widget = new ColorWidget(
+      "Label color: ",
+      "#000000",
+      function () { the_view.draw(); }
+    );
+    this.controls.push(this.label_color_widget);
+
+    this.missing_color_widget = new ColorWidget(
+      "Missing color: ",
+      "#ffffff",
+      function () { the_view.draw(); }
+    );
+    this.controls.push(this.missing_color_widget);
   }
+
+  Matrix.prototype = Object.create(View.prototype);
+  Matrix.prototype.constructor = Matrix;
+
+  // Updates the row mapping; call compute_matrix afterwards.
+  Matrix.prototype.set_rows = function (index) {
+    if (index == undefined) {
+      this.rows_field = undefined;
+      this.n_rows = 1;
+      this.row_labels = [ "" ];
+      this.get_row = d => 0;
+    } else {
+      if (typeof index === "string") {
+        index = ds.lookup_index(this.data, index);
+      }
+      this.rows_field = index;
+
+      var cx = ds.categorical_transform(this.data, index);
+      this.n_rows = cx.count;
+      this.row_labels = cx.labels;
+      this.get_row = cx.getter;
+    }
+  }
+
+  // Updates the column mapping; call compute_matrix afterwards.
+  Matrix.prototype.set_cols = function (index) {
+    if (index == undefined) {
+      this.cols_field = undefined;
+      this.n_cols = 1;
+      this.col_labels = [ "" ];
+      this.get_col = d => 0;
+    } else {
+      if (typeof index === "string") {
+        index = ds.lookup_index(this.data, index);
+      }
+      this.cols_field = index;
+
+      var cx = ds.categorical_transform(this.data, index);
+      this.n_cols = cx.count;
+      this.col_labels = cx.labels;
+      this.get_col = cx.getter;
+    }
+  }
+
+  // Updates the value mapping; call compute_matrix afterwards.
+  Matrix.prototype.set_value = function (index) {
+    if (typeof index === "string") {
+      index = ds.lookup_index(this.data, index);
+    }
+    this.vals_field = index;
+
+    var nx = ds.numerical_transform(this.data, index);
+    this.val_domain = nx.domain;
+    this.get_val = nx.getter;
+  }
+
+  // Updates the records; call compute_matrix afterwards.
+  Matrix.prototype.set_records = function (records) {
+    this.records = records;
+  }
+
+  // Computes the matrix values
+  Matrix.prototype.compute_matrix = function () {
+    this.matrix = [[]];
+    this.counts = [[]];
+    this.stdevs = [[]];
+
+    for (let i = 0; i < this.records.length; ++i) {
+      var r = this.records[i];
+      var col = this.get_col(r);
+      var row = this.get_row(r);
+      var val = this.get_val(r);
+
+      if (this.counts[col] == undefined) {
+        this.counts[col] = [];
+        this.matrix[col] = [];
+        this.stdevs[col] = [];
+      }
+      var nc;
+      if (this.counts[col][row] == undefined) {
+        nc = 1;
+        this.counts[col][row] = nc;
+        this.matrix[col][row] = val;
+        this.stdevs[col][row] = 0;
+      } else {
+        nc = this.counts[col][row] + 1;
+        this.counts[col][row] = nc;
+        var om = this.matrix[col][row];
+        var delta = val - om;
+        var nm = om + delta / nc
+        var d2 = val - nm; 
+        this.matrix[col][row] = nm;
+        this.stdevs[col][row] += delta * d2;
+      }
+    }
+
+    // polish standard deviations and fill in missing counts as zeros
+    for (let c = 0; c < this.n_cols; ++c) {
+      for (let r = 0; r < this.n_rows; ++r) {
+        if (this.counts[c] == undefined) {
+          this.counts[c] = [];
+          this.matrix[c] = [];
+          this.stdevs[c] = [];
+        }
+        var cv = this.counts[c][r];
+        if (cv == undefined) {
+          this.counts[c][r] = 0;
+          this.matrix[c][r] = NaN;
+          this.stdevs[c][r] = NaN;
+        } else if (cv > 1) {
+          var sv = this.stdevs[col][row];
+          this.stdevs[c][r] = Math.sqrt(sv / (cv - 1));
+        } else {
+          this.stdevs[c][r] = 0;
+        }
+      }
+    }
+  }
+
+  Matrix.prototype.draw = function() {
+    // Reset the frame:
+    this.frame.selectAll("*").remove();
+
+    viz.draw_matrix(
+      this.frame,
+      this.matrix,
+      this.counts,
+      this.stdevs,
+      this.val_domain,
+      this.col_labels,
+      this.row_labels,
+      this.color_scale_widget.get_gradient(),
+      this.missing_color_widget.color,
+      this.label_color_widget.color,
+    );
+  }
+
+  ////////////////////
+  // Module Exports //
+  ////////////////////
 
   return {
     "ToggleWidget": ToggleWidget,
     "SelectWidget": SelectWidget,
     "ColorScaleWidget": ColorScaleWidget,
     "MultiselectWidget": MultiselectWidget,
+    "View": View,
     "LensView": LensView,
     "Histogram": Histogram,
+    "Matrix": Matrix,
   };
 });

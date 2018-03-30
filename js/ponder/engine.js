@@ -235,11 +235,21 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     if (RIGHT_VIEW != undefined) {
       d3.select("#right_controls").selectAll("*").remove();
     }
+    /*
     RIGHT_VIEW = new vw.Histogram(
       "right",
       data,
       LEFT_VIEW.selected,
       ds.nth_of_kind(data, "map", 0),
+    );
+    */
+    RIGHT_VIEW = new vw.Matrix(
+      "right",
+      data,
+      LEFT_VIEW.selected,
+      ds.nth_of_kind(data, "string", 0),
+      ds.nth_of_kind(data, "string", 1),
+      ds.nth_of_kind(data, "number", 0),
     );
     RIGHT_VIEW.bind_frame(RIGHT_FRAME);
     RIGHT_VIEW.put_controls(RIGHT_CONTROLS);
@@ -249,7 +259,10 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     // hook view together
     LEFT_VIEW.subscribe_to_selection(function (items) {
       RIGHT_VIEW.set_records(items);
+      /* TODO: How this dynamically?
       RIGHT_VIEW.compute_counts();
+      */
+      RIGHT_VIEW.compute_matrix();
       RIGHT_VIEW.draw();
     });
   }

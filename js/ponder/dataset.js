@@ -630,6 +630,53 @@ function (utils, prp) {
     }
   }
 
+  // Figures out a categorical domain for the given index, and returns an object
+  // with the following keys:
+  //
+  //   getter
+  //     A function that takes a data record an returns an integer value for
+  //     the given index.
+  //   count
+  //     The number of categories. Integer values returned by the getter will
+  //     be in [0, count)
+  //   labels
+  //     An array of string labels that's count items long.
+  //
+  // Undefined values will get put in a category of their own.
+  //
+  function categorical_transform(dataset, index) {
+    var typ = get_type(dataset, index);
+    var sorter;
+    if (typ.kind == "number") {
+      sorter = (a, b) => a - b;
+    } else {
+      sorter = undefined;
+    }
+
+    var val_indices;
+    if (typ.kind == "string") {
+      var dom = get_domain(dataset, index);
+      val_indices = Object.assign({}, dom);
+    } else {
+      val_indices = {};
+      for (let i = 0; i < dataset.records.length; ++i) {
+        val_indices[get_field(dataset, dataset.records[i], index)] = true;
+      }
+    }
+
+    var skeys = Object.keys(val_indices).sort(sorter);
+    for (let i = 0; i < skeys.length; ++i) {
+      val_indices[skeys[i]] = i;
+    }
+    return {
+      "getter": function (d) {
+        return val_indices[get_field(dataset, d, index)];
+      },
+      "count": skeys.length,
+      "labels": skeys,
+    };
+  }
+
   return {
     "DEFAULT_OUTLIER_ALLOWANCE": DEFAULT_OUTLIER_ALLOWANCE,
     "get_name": get_name,
@@ -653,5 +700,6 @@ function (utils, prp) {
     "numerical_transform": numerical_transform,
     "outlier_model": outlier_model,
     "vector_transform": vector_transform,
+    "categorical_transform": categorical_transform,
   };
 });

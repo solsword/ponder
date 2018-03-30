@@ -242,8 +242,8 @@ function (d3, utils, qt, prp) {
             var count = 0;
             for (var k in frequencies) {
               if (frequencies.hasOwnProperty(k)) {
+                count += 1;
                 if (frequencies[k] == frequencies[winner] && k != winner) {
-                  count += 1;
                   tied = true;
                 }
               }
@@ -262,8 +262,8 @@ function (d3, utils, qt, prp) {
           .data(leaves)
         .enter().append("text")
           .attr("class", "label")
-          .attr("x", d => d.centroid[0])
-          .attr("y", d => d.centroid[1])
+          .attr("x", d => d.centroid[0] + 3)
+          .attr("y", d => d.centroid[1] - 3)
           .attr("fill", color_for)
           .attr("dominant-baseline", "auto")
           .attr("text-anchor", "start")
@@ -414,9 +414,154 @@ function (d3, utils, qt, prp) {
       .text(function(d) { return bar_label(d[0]); });
   }
 
+  // Draws a matrix with row and column labels, where each cell displays a
+  // color according to the value from a matrix. If label color isn't given,
+  // labels aren't shown; the default missing color is white.
+  function draw_matrix(
+    element,
+    matrix,
+    counts,
+    stdevs,
+    val_domain,
+    col_labels,
+    row_labels,
+    color_scale,
+    missing_color,
+    label_color,
+  ) {
+    if (color_scale === undefined) {
+      color_scale = DEFAULT_COLOR_SCALE;
+    }
+
+    missing_color = missing_color || "#ffffff";
+
+    if (val_domain == undefined) {
+      var lower = 0;
+      var upper = 1;
+    } else {
+      var lower = val_domain[0];
+      var upper = val_domain[1];
+    }
+
+    function nv(val) {
+      return (val - lower) / (upper - lower);
+    }
+
+    // clear out any old stuff:
+    element.selectAll("*").remove();
+
+    var items = [];
+    var n_cols = matrix.length;
+    var n_rows = 0;
+    for (let c = 0; c < matrix.length; ++c) {
+      if (matrix[c] != undefined) {
+        for (let r = 0; r < matrix[c].length; ++r) {
+          if (r+1 > n_rows) {
+            n_rows = r+1;
+          }
+          var val = matrix[c][r];
+          items.push([[c, r], val, nv(val)]);
+        }
+      }
+    }
+
+    var eh = element.attr("height"); // element height
+    var vpad = 0.02 * eh; // 2% padding on top and bottom
+    var vlbls = 0.15 * eh; // 15% for labels
+
+    var ch; // cell height
+    if (n_rows > 0) {
+      ch = (eh - 2*vpad - vlbls) / n_rows;
+    } else {
+      ch = eh - 2*vpad - vlbls;
+    }
+    var cvpad = 0.03 * ch; // 3% padding for each cell
+    var cih = ch - 2*cvpad; // bar inner height
+
+    var ew = element.attr("width"); // element width
+    var hpad = 0.02 * eh; // 2% padding on sides
+    var hlbls = 0.15 * eh; // 15% for labels
+
+    var cw; // cell width
+    if (n_cols > 0) {
+      cw = (ew - 2*hpad - hlbls) / n_cols;
+    } else {
+      cw = (ew - 2*hpad - hlbls);
+    }
+    var chpad = 0.03 * cw; // 3% padding for each cell
+    var ciw = cw - 2*chpad; // bar inner height
+
+    element.selectAll("text.row") // row label at left
+      .data(row_labels)
+    .enter().append("text")
+      .attr("class", "row label")
+      .attr("x", hpad + hlbls)
+      .attr("y", (d, i) => vpad + vlbls + i * ch + ch/2)
+      .attr("dominant-baseline", "middle")
+      .attr("text-anchor", "end")
+      .attr("font-size", Math.min(18, cih) + "px")
+      .text(d => d + NBSP);
+
+    element.selectAll("text.column")
+      .data(col_labels)
+    .enter().append("text")
+      .attr("class", "column label")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("transform", function (d, i) {
+        var x = hpad + hlbls + i * cw + cw/2;
+        var y = vpad + vlbls;
+        return "translate(" + x + "," + y + "), rotate(90)";
+      })
+      .attr("dominant-baseline", "middle")
+      .attr("text-anchor", "end")
+      .attr("font-size", Math.min(18, ciw) + "px")
+      .text(d => d + NBSP);
+
+    var cellgroup = element.selectAll("g")
+      .data(items)
+    .enter().append("g")
+      .attr("class", "cell_group")
+      .attr(
+        "transform",
+        function(d) {
+          var c = d[0][0];
+          var r = d[0][1];
+          var x = hpad + hlbls + c * cw;
+          var y = vpad + vlbls + r * ch;
+          return "translate(" + x + "," + y + ")"
+        }
+      );
+    cellgroup.append("rect") // the cell itself
+      .attr("class", "bar")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", cw)
+      .attr("height", ch)
+      .attr("fill", function(d) {
+        var val = d[2];
+        if (val == undefined || Number.isNaN(val)) {
+          return missing_color;
+        } else {
+          return color_scale(val);
+        }
+      });
+    if (label_color != undefined) {
+      cellgroup.append("text") // value label inside cell
+        .attr("class", "label")
+        .attr("x", cw/2)
+        .attr("y", ch/2)
+        .attr("font-size", Math.min(18, cih) + "px")
+        .attr("dominant-baseline", "middle")
+        .attr("text-anchor", "middle")
+        .text(function(d) { return prp.format_number(d[1], "∙"); });
+    }
+  }
+
   return {
     "value_sums": value_sums,
     "draw_quadtree": draw_quadtree,
     "draw_histogram": draw_histogram,
+    "draw_matrix": draw_matrix,
   };
 });
