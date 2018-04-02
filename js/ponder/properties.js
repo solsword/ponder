@@ -59,6 +59,30 @@ define(["d3", "./utils"], function (d3, utils) {
     }
   }
 
+  // Given a dimensions list and an array of indices, unrolls the array into a
+  // flat index (an integer).
+  function unroll_index(dimensions, seq_idx) {
+    var flat_idx = 0;
+    var stride = 1;
+    for (let i = dimensions.length - 1; i >= 0; --i) {
+      flat_idx += seq_idx[i] * stride;
+      sride *= dimensions[i];
+    }
+    return flat_idx;
+  }
+
+  // Given a dimensions list and a flat index, rolls the index up into an array
+  // of indices.
+  function rollup_index(dimensions, flat_idx) {
+    var seq_idx = [];
+    for (let i = dimensions.length - 1; i >= 0; --i) {
+      var dim = dimensions[i];
+      seq_idx.push(flat_idx % dim);
+      flat_idx = Math.floor(flat_idx / dim);
+    }
+    return seq_idx.reverse();
+  }
+
   // Decides the type of a field given an example value. Types are objects with
   // the following keys:
   //
@@ -538,6 +562,8 @@ define(["d3", "./utils"], function (d3, utils) {
     "format_number": format_number,
     "format_type": format_type, 
     "formatter_for_type": formatter_for_type,
+    "unroll_index": unroll_index,
+    "rollup_index": rollup_index,
     "fmap": fmap,
     "get_value": get_value,
     "put_value": put_value,

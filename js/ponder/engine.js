@@ -249,7 +249,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       LEFT_VIEW.selected,
       ds.nth_of_kind(data, "string", 0),
       ds.nth_of_kind(data, "string", 1),
-      ds.nth_of_kind(data, "number", 0),
+      undefined,
     );
     RIGHT_VIEW.bind_frame(RIGHT_FRAME);
     RIGHT_VIEW.put_controls(RIGHT_CONTROLS);

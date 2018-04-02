@@ -444,7 +444,11 @@ function (d3, utils, qt, prp) {
     }
 
     function nv(val) {
-      return (val - lower) / (upper - lower);
+      if (lower == upper) {
+        return val;
+      } else {
+        return (val - lower) / (upper - lower);
+      }
     }
 
     // clear out any old stuff:

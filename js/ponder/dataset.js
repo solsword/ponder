@@ -11,12 +11,32 @@ function (utils, prp) {
    * Dataset functions
    */
 
+  // Gets the name of a field, using an alias if it has one.
   function get_name(dataset, index) {
     var base = prp.index__string(index);
     if (dataset.aliases.hasOwnProperty(base)) {
       return dataset.aliases[base];
     } else {
       return base;
+    }
+  }
+
+  // Gets the name of a field, using an alias if it has one. For nested fields,
+  // just uses the last part of the name, or the last several parts if the last
+  // parts of the index are numerical.
+  function get_short_name(dataset, index) {
+    var base = prp.index__string(index);
+    if (dataset.aliases.hasOwnProperty(base)) {
+      return dataset.aliases[base];
+    } else {
+      var shrt = [];
+      for (let i = index.length - 1; i >= 0; --i) {
+        shrt.push(index[i]);
+        if (Number.isNaN(index[i])) {
+          break;
+        }
+      }
+      return prp.index__string(shrt.reverse());
     }
   }
 
@@ -634,47 +654,89 @@ function (utils, prp) {
   // with the following keys:
   //
   //   getter
-  //     A function that takes a data record an returns an integer value for
-  //     the given index.
-  //   count
-  //     The number of categories. Integer values returned by the getter will
-  //     be in [0, count)
+  //     A function that takes a data record and a category index and returns
+  //     a numeric value for the given index, or undefined if the given data
+  //     record has no value for that index.
+  //   n_categories
+  //     The number of categories. The getter will return undefined for
+  //     category index arguments not in [0, n_categories)
   //   labels
-  //     An array of string labels that's count items long.
+  //     An array of string labels that's n_categories items long.
   //
-  // Undefined values will get put in a category of their own.
-  //
+  // For numeric and string fields, each distinct possible value becomes a
+  // category, and each record returns 1 for the category to which it belongs
+  // and undefined for all other categories. For tensors, each possible
+  // flattened sub-index is a category, returning the value in that entry of
+  // the tensor. For maps, each key is a category, returning the value for that
+  // key.
   function categorical_transform(dataset, index) {
     var typ = get_type(dataset, index);
-    var sorter;
-    if (typ.kind == "number") {
-      sorter = (a, b) => a - b;
-    } else {
-      sorter = undefined;
-    }
-
-    var val_indices;
-    if (typ.kind == "string") {
-      var dom = get_domain(dataset, index);
-      val_indices = Object.assign({}, dom);
-    } else {
-      val_indices = {};
-      for (let i = 0; i < dataset.records.length; ++i) {
-        val_indices[get_field(dataset, dataset.records[i], index)] = true;
+    if (typ.kind == "tensor") { // TODO: recursive transforms?
+      var tdim = typ.dimensions.reduce((a, b) => a * b);
+      var labels = [];
+      for (let i = 0; i < tdim; ++i) {
+        var seq_idx = prp.rollup_index(typ.dimensions, i);
+        labels.push(get_short_name(dataset, index.concat(seq_idx)))
       }
-    }
+      return {
+        "getter": function (d, idx) {
+          var seq_idx = prp.rollup_index(typ.dimensions, idx);
+          return get_field(dataset, d, index.concat(seq_idx));
+        },
+        "n_categories": tdim,
+        "labels": labels,
+      };
+    } else if (typ.kind == "map") { // TODO: recursive transforms?
+      var categories = Object.keys(typ.subtypes).sort();
+      var cat_indices = [];
+      for (let i = 0; i < categories.length; ++i) {
+        cat_indices[categories[i]] = i;
+      }
+      return {
+        "getter": function (d, idx) {
+          var cat = categories[idx];
+          if (cat == undefined) {
+            return undefined;
+          } else {
+            return get_field(dataset, d, index.concat([cat]));
+          }
+        },
+        "n_categories": categories.length,
+        "labels": categories.map(
+          c => get_short_name(dataset, index.concat([c]))
+        ),
+      };
+    } else { // number or string
+      var sorter;
+      var val_indices;
+      if (typ.kind == "number") {
+        sorter = (a, b) => a - b;
+        val_indices = {};
+        for (let i = 0; i < dataset.records.length; ++i) {
+          val_indices[get_field(dataset, dataset.records[i], index)] = true;
+        }
+      } else {
+        sorter = undefined;
+        var dom = get_domain(dataset, index);
+        val_indices = Object.assign({}, dom);
+      }
 
-    var skeys = Object.keys(val_indices).sort(sorter);
-    for (let i = 0; i < skeys.length; ++i) {
-      val_indices[skeys[i]] = i;
+      var skeys = Object.keys(val_indices).sort(sorter);
+      for (let i = 0; i < skeys.length; ++i) {
+        val_indices[skeys[i]] = i;
+      }
+      return {
+        "getter": function (d, i) {
+          if (i == val_indices[get_field(dataset, d, index)]) {
+            return 1;
+          } else {
+            return undefined;
+          }
+        },
+        "n_categories": skeys.length,
+        "labels": skeys,
+      };
     }
-    return {
-      "getter": function (d) {
-        return val_indices[get_field(dataset, d, index)];
-      },
-      "count": skeys.length,
-      "labels": skeys,
-    };
   }
 
   return {
