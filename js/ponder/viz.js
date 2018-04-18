@@ -418,7 +418,7 @@ function (d3, utils, qt, prp) {
         }
       }
       function bar_label(value) {
-        return NBSP + prp.format_number(bar_value(value)) +"×"+normalize[value];
+        return "" + prp.format_number(bar_value(value)) +"×"+normalize[value];
       }
     } else {
       function bar_value(value) {
@@ -431,11 +431,11 @@ function (d3, utils, qt, prp) {
       }
       if (normalize == 1) {
         function bar_label(value) {
-          return NBSP + prp.format_number(bar_value(value));
+          return "" + prp.format_number(bar_value(value));
         }
       } else {
         function bar_label(value) {
-          return NBSP + prp.format_number(bar_value(value)) + "×" + normalize;
+          return "" + prp.format_number(bar_value(value)) + "×" + normalize;
         }
       }
     }
@@ -444,6 +444,7 @@ function (d3, utils, qt, prp) {
     element.selectAll("*").remove();
 
     var pairs = [];
+    var min = undefined;
     var max = undefined;
     var iterate_over = ordering || Object.keys(counts);
     for (let i = 0; i < iterate_over.length; ++i) {
@@ -453,6 +454,9 @@ function (d3, utils, qt, prp) {
         pairs.push([key, bv]);
         if (max === undefined || max < bv) {
           max = bv;
+        }
+        if (min === undefined || min > bv) {
+          min = bv;
         }
       }
     }
@@ -474,12 +478,34 @@ function (d3, utils, qt, prp) {
     var bih = bh - 2*bpad; // bar inner height
 
     var ew = element.attr("width");
-    var bx = ew * 0.25 // 25% for value labels
-    var bw = ew * 0.65; // 75% width (save extra 10% for count labels)
+    var lx = ew * 0.25 // 25% for value labels
+    var bx;
+    var bw;
+
+    // set min to 0 if it's larger than 0, and provide extra space for labels
+    // on the left:
+    if (min > 0) {
+      min = 0;
+      bx = ew * 0.25 // 25% for value labels
+      bw = ew * 0.65; // 75% width (save extra 10% for count labels)
+    } else {
+      bx = ew * 0.35 // 25% for value labels + 10% for left-hand counts
+      bw = ew * 0.55; // 65% width (extra 10% for right-hand counts)
+    }
+
+
+    // x-value for zero
+    var zero_x = bx + bw * (0 - min) / (max - min)
+    console.log(min + " → " + zero_x);
 
     function bar_width(d) {
-      if (Number.isFinite(d[1]) && Number.isFinite(max) && max > 0) {
-        return bw * (d[1] / max)
+      if (
+        Number.isFinite(d[1])
+     && Number.isFinite(max)
+     && Number.isFinite(min)
+     && max > min
+      ) {
+        return bw * Math.abs(d[1]) / (max - min);
       } else {
         return 0;
       }
@@ -499,25 +525,28 @@ function (d3, utils, qt, prp) {
         );
     bargroup.append("rect") // the bar itself
       .attr("class", "bar")
-      .attr("x", bx)
+      .attr("x", d => (d[1] >= 0 ? zero_x : zero_x - bar_width(d)))
       .attr("y", bpad)
       .attr("width", bar_width)
       .attr("height", bih)
       .attr("fill", function(d) { return color_scale(d[1]/max); });
     bargroup.append("text") // value label before bar
       .attr("class", "label")
-      .attr("x", bx)
+      .attr("x", lx)
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "end")
       .text(function(d) { return "" + d[0] + NBSP; });
     bargroup.append("text") // count label at end of bar
       .attr("class", "label")
-      .attr("x", function (d) { return bx + bar_width(d) } )
+      .attr(
+        "x",
+        d => d[1] >= 0 ? zero_x + bar_width(d) : zero_x - bar_width(d)
+      )
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
-      .attr("text-anchor", "start")
-      .text(function(d) { return bar_label(d[0]); });
+      .attr("text-anchor", d => d[1] >= 0 ? "start" : "end")
+      .text(d => d[1] >= 0 ? NBSP + bar_label(d[0]) : bar_label(d[0]) + NBSP);
   }
 
   // Draws a matrix with row and column labels, where each cell displays a
