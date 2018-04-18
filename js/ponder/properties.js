@@ -117,7 +117,7 @@ define(["d3", "./utils"], function (d3, utils) {
       for (var i = 0; i < dimension; ++i) {
         subtypes.push(assess_type(value[i]));
       }
-      var joint_subtype = undefined;
+      var joint_subtype = { "kind": "undefined" };
       if (subtypes.length > 0) {
         joint_subtype = subtypes[0];
       }

@@ -22,6 +22,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   var LINES_PER_PAGE = 40;
   var SCROLL_FACTOR = 10; // pixels of scroll per 1% radius adjust
 
+  // Regex for finding an integer in a string:
+  var FIND_INT = /[0-9]+/
+
   //////////////////
   // ToggleWidget //
   //////////////////
@@ -1074,21 +1077,12 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // Histogram //
   ///////////////
 
-  // Default # of bins to use
+  // Default # of bins to use when the data doesn't suggest a number
   var DEFAULT_BINS = 10;
 
-  // Limit on # of bars to display (bars can be sorted by length)
-  var DEFAULT_BAR_LIMIT = 30;
-
-  // Modes for displaying histograms
-  var HISTOGRAM_MODES = [
-    "sums",
-    "counts",
-    "averages",
-    "avgcounts",
-    "normalized",
-    "normcounts"
-  ];
+  // Maximum number of discrete values to bin as exact values instead of using
+  // numerical ranges.
+  var MAX_DISCRETE_BINS = 30;
 
   // Creates a histogram of values in the given field using just the given
   // records from the given dataset.
@@ -1110,7 +1104,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // will be computed across the given records, and that will form the
   // histogram.
   //
-  // If bar_limit isn't given, it will default to DEFAULT_BAR_LIMIT.
+  // If bar_limit isn't given, it will default to no limit.
   function Histogram(
     id,
     dataset,
@@ -1125,7 +1119,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.records = records;
     this.bins = bins;
     this.domain = domain;
-    this.bar_limit = bar_limit || DEFAULT_BAR_LIMIT;
+    this.bar_limit = bar_limit;
 
     this.flags = {
       "force_counts": false,
@@ -1137,7 +1131,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     // set field & mode and compute counts
     this.set_flags(flags);
     this.set_field(field);
-    this.compute_counts();
+    this.update();
 
     // set up widgets:
     var the_view = this;
@@ -1149,7 +1143,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         function () { return ds.get_name(the_view.data, the_view.field) },
         function (iname) {
           the_view.set_field(iname);
-          the_view.compute_counts();
+          the_view.update();
           the_view.draw();
         }
       )
@@ -1161,7 +1155,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         this.flags.sort,
         function (yes) {
           the_view.flags.sort = yes;
-          the_view.compute_counts();
+          the_view.update();
           the_view.draw();
         }
       )
@@ -1173,7 +1167,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         this.flags.force_counts,
         function (yes) {
           the_view.flags.force_counts = yes;
-          the_view.compute_counts();
+          the_view.update();
           the_view.draw();
         }
       )
@@ -1185,7 +1179,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         this.flags.average,
         function (yes) {
           the_view.flags.average = yes;
-          the_view.compute_counts();
+          the_view.update();
           the_view.draw();
         }
       )
@@ -1197,7 +1191,62 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         this.flags.normalize,
         function (yes) {
           the_view.flags.normalize = yes;
-          the_view.compute_counts();
+          the_view.update();
+          the_view.draw();
+        }
+      )
+    );
+
+    var limit_options = [
+      "<no limit>", 1, 3, 5, 10, 20, 30, 50, 100
+    ]
+    if (this.bar_limit && limit_options.indexOf(this.bar_limit) == -1) {
+      var nopts = ["<no limit>"];
+      for (let i = 1; i < limit_options.length; ++i) {
+        var next = limit_options[i];
+        if (this.bar_limit < next) {
+          nopts.push(this.bar_limit);
+        }
+        nopts.push(next);
+      }
+      limit_options = nopts;
+    }
+    this.controls.push(
+      new SelectWidget(
+        "Show only the top: ",
+        limit_options,
+        (this.bar_limit || "<no limit>") + "",
+        function (selected) {
+          var bl;
+          if (selected == "<no limit>") {
+            bl = undefined;
+          } else {
+            bl = Number.parseInt(selected);
+          }
+          the_view.bar_limit = bl;
+          the_view.update();
+          the_view.draw();
+        }
+      )
+    );
+
+    var bins_options = [
+      "<auto>", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 100
+    ]
+    this.controls.push(
+      new SelectWidget(
+        "Number of bins: ",
+        bins_options,
+        (this.bins || "<auto>") + "",
+        function (selected) {
+          var bn;
+          if (selected == "<auto>") {
+            bn = undefined;
+          } else {
+            bn = Number.parseInt(selected);
+          }
+          the_view.bins = bn;
+          the_view.update();
           the_view.draw();
         }
       )
@@ -1216,7 +1265,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   Histogram.prototype = Object.create(View.prototype);
   Histogram.prototype.constructor = Histogram;
 
-  // Reassigns the field for this histogram. compute_counts should be called
+  // Reassigns the field for this histogram. update should be called
   // afterwards.
   Histogram.prototype.set_field = function (field) {
     if (typeof field === "string") {
@@ -1225,8 +1274,8 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.field = field;
   }
 
-  // Reassigns the record set for this histogram. compute_counts should be
-  // called to update the counts.
+  // Reassigns the record set for this histogram. update should be called to
+  // update the counts.
   Histogram.prototype.set_records = function (records) {
     this.records = records;
   }
@@ -1243,7 +1292,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   // sort
   //   Whether to sort by bar length or not.
   //
-  // Call compute_counts afterwards.
+  // Call update afterwards.
   Histogram.prototype.set_flags = function (flags) {
     if (flags === undefined) { flags = {} };
     this.flags = Object.assign(this.flags, flags);
@@ -1256,65 +1305,110 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     var bins = this.bins;
     if (ft.kind === "number") {
       var dom;
-      if (bins === undefined) { bins = DEFAULT_BINS; }
-      this.bins = bins;
-      if (this.domain === undefined) {
-        dom = ds.get_domain(this.data, this.field);
-      } else if (this.domain === "auto") {
-        dom = [undefined, undefined];
+      var used_discrete = false;
+      if (bins == undefined) {
+        // count distinct values to see if there are only a few
+        var discrete_names = [];
+        var discrete_count = 0;
+        var discrete = {};
         for (let i = 0; i < this.records.length; ++i) {
           var val = ds.get_field(this.data, this.records[i], this.field);
-          if (dom[0] === undefined || dom[0] > val) { dom[0] = val; }
-          if (dom[1] === undefined || dom[1] < val) { dom[1] = val; }
+          if (discrete.hasOwnProperty(val)) {
+            discrete[val] += 1;
+          } else {
+            discrete_count += 1;
+            discrete_names.push(val)
+            discrete[val] = 1;
+          }
         }
-      } else {
-        dom = this.domain;
-      }
-      var bs = (dom[1] - dom[0]) / bins;
-      var bin_names = [];
-      for (let i = 0; i < bins; ++i) {
-        bin_names.push(
-          "" + (dom[0] + bs * i).toPrecision(2) + "–"
-        + (dom[0] + bs * (i + 1)).toPrecision(2)
-        );
-      }
-      for (let i = 0; i < this.records.length; ++i) {
-        var val = ds.get_field(this.data, this.records[i], this.field);
-        var bin;
-        if (val == dom[0] + bs * bins) {
-          bin = bins-1; // let the last bin be inclusive
-        } else {
-          bin = Math.floor((val - dom[0]) / bs);
+        if (discrete_count <= MAX_DISCRETE_BINS) {
+          discrete_names.sort((a, b) => a - b);
+          this.counts = discrete;
+          this.bin_names = discrete_names;
+          used_discrete = true;
         }
-        var bn = bin_names[bin];
-        if (this.counts.hasOwnProperty(bn)) {
-          this.counts[bn] += 1;
+      }
+
+      if (!used_discrete) { // if the discrete attempt failed
+        if (this.domain === undefined) {
+          dom = ds.get_domain(this.data, this.field);
+        } else if (this.domain === "auto") {
+          dom = [undefined, undefined];
+          for (let i = 0; i < this.records.length; ++i) {
+            var val = ds.get_field(this.data, this.records[i], this.field);
+            if (dom[0] === undefined || dom[0] > val) { dom[0] = val; }
+            if (dom[1] === undefined || dom[1] < val) { dom[1] = val; }
+          }
         } else {
-          this.counts[bn] = 1;
+          dom = this.domain;
+        }
+        var bs = (dom[1] - dom[0]) / bins;
+        this.bin_names = [];
+        for (let i = 0; i < bins; ++i) {
+          this.bin_names.push(
+            "" + (dom[0] + bs * i).toPrecision(2) + "–"
+          + (dom[0] + bs * (i + 1)).toPrecision(2)
+          );
+        }
+        for (let i = 0; i < this.records.length; ++i) {
+          var val = ds.get_field(this.data, this.records[i], this.field);
+          var bin;
+          if (val == dom[0] + bs * bins) {
+            bin = bins-1; // let the last bin be inclusive
+          } else {
+            bin = Math.floor((val - dom[0]) / bs);
+          }
+          var bn = this.bin_names[bin];
+          if (this.counts.hasOwnProperty(bn)) {
+            this.counts[bn] += 1;
+          } else {
+            this.counts[bn] = 1;
+          }
         }
       }
     } else if (ft.kind === "string") {
+      this.bin_names = [];
+      bin_ints = true;
       for (let i = 0; i < this.records.length; ++i) {
         var val = ds.get_field(this.data, this.records[i], this.field);
         if (this.counts.hasOwnProperty(val)) {
           this.counts[val] += 1;
         } else {
+          this.bin_names.push(val);
+          var match = val.match(FIND_INT)
+          if (match == null) {
+            bin_ints = false;
+          }
           this.counts[val] = 1;
         }
       }
+      if (bin_ints) {
+        this.bin_names.sort(
+          (a, b) =>
+            Number.parseInt(a.match(FIND_INT)[0])
+          - Number.parseInt(b.match(FIND_INT)[0])
+        );
+      } else {
+        this.bin_names.sort();
+      }
     } else if (ft.kind === "tensor" && ft.value_type.kind === "number") {
       // tensor of numbers
+      this.bin_names = [];
+      var tdim = ft.dimensions.reduce((a, b) => a * b);
+      for (let j = 0; j < tdim; ++j) {
+        seq_idx = prp.rollup_index(ft.dimensions, j);
+        this.bin_names.push(ds.get_name(this.data, this.field.concat(seq_idx)));
+      }
       for (let i = 0; i < this.records.length; ++i) {
-        var indices = prp.property_indices("ignored", ft);
-        var tdim = ft.dimensions.reduce((a, b) => a * b);
         for (let j = 0; j < tdim; ++j) {
-          var seq_idx = prp.rollup(ft.dimensions, j);
+          var seq_idx = prp.rollup_index(ft.dimensions, j);
+          var full_idx = this.field.concat(seq_idx);
           var val = ds.get_field(
             this.data,
             this.records[i],
-            this.field.concat(seq_idx)
+            full_idx
           );
-          var key = prp.index__string(idx);
+          var key = ds.get_name(this.data, full_idx);
           if (this.flags.force_counts) {
             if (this.counts.hasOwnProperty(key)) {
               this.counts[key] += 1;
@@ -1332,9 +1426,10 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     } else if (ft.kind === "tensor") {
       // TODO: HERE?!
-      console.warn("Unknown tensor type");
+      console.warn("Unmanageable tensor type");
       console.warn(ft);
     } else if (ft.kind === "map") {
+      this.bin_names = [];
       var all_numeric = true;
       for (var k in ft.subtypes) {
         if (ft.subtypes.hasOwnProperty(k)) {
@@ -1354,6 +1449,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
                 if (this.counts.hasOwnProperty(name)) {
                   this.counts[name] += 1;
                 } else {
+                  this.bin_names.push(name);
                   this.counts[name] = 1;
                 }
               } else {
@@ -1361,6 +1457,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
                 if (this.counts.hasOwnProperty(name)) {
                   this.counts[name] += sv;
                 } else {
+                  this.bin_names.push(name);
                   this.counts[name] = sv;
                 }
               }
@@ -1370,6 +1467,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     } else {
       // Don't know how to make a histogram out of that...
+      this.bin_names = [];
       this.counts = undefined;
     }
 
@@ -1401,6 +1499,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
+  // update alias
+  Histogram.prototype.update = Histogram.prototype.compute_counts;
+
   Histogram.prototype.draw = function() {
     // Reset the frame:
     this.frame.selectAll("*").remove();
@@ -1425,6 +1526,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       viz.draw_histogram(
         this.frame,
         this.counts,
+        this.bin_names,
         this.bar_limit,
         this.color_widget.get_gradient(),
         this.flags.sort,
@@ -1444,7 +1546,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     this.set_rows(rows_field);
     this.set_value(vals_field);
 
-    this.compute_matrix();
+    this.update();
 
     var the_view = this;
 
@@ -1459,7 +1561,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           } else {
             the_view.set_rows(iname);
           }
-          the_view.compute_matrix();
+          the_view.update();
           the_view.rebind();
           the_view.draw();
         }
@@ -1477,7 +1579,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           } else {
             the_view.set_cols(iname);
           }
-          the_view.compute_matrix();
+          the_view.update();
           the_view.rebind();
           the_view.draw();
         }
@@ -1495,14 +1597,11 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
           } else {
             the_view.set_value(iname);
           }
-          the_view.compute_matrix();
+          the_view.update();
           the_view.rebind();
           the_view.draw();
         }
       )
-    );
-
-    this.controls.push(
     );
 
     this.color_scale_widget = new ColorScaleWidget(
@@ -1532,7 +1631,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
   Matrix.prototype = Object.create(View.prototype);
   Matrix.prototype.constructor = Matrix;
 
-  // Updates the row mapping; call compute_matrix afterwards.
+  // Updates the row mapping; call update afterwards.
   Matrix.prototype.set_rows = function (index) {
     if (index == undefined) {
       this.rows_field = undefined;
@@ -1552,7 +1651,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Updates the column mapping; call compute_matrix afterwards.
+  // Updates the column mapping; call update afterwards.
   Matrix.prototype.set_cols = function (index) {
     if (index == undefined) {
       this.cols_field = undefined;
@@ -1572,7 +1671,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Updates the value mapping; call compute_matrix afterwards.
+  // Updates the value mapping; call update afterwards.
   Matrix.prototype.set_value = function (index) {
     if (typeof index === "string") {
       index = ds.lookup_index(this.data, index);
@@ -1589,7 +1688,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     }
   }
 
-  // Updates the records; call compute_matrix afterwards.
+  // Updates the records; call update afterwards.
   Matrix.prototype.set_records = function (records) {
     this.records = records;
   }
@@ -1656,9 +1755,6 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     }
 
-    console.log([this.n_rows, this.n_cols]);
-    console.log(this.matrix);
-
     // polish standard deviations and fill in missing counts as zeros
     for (let c = 0; c < this.n_cols; ++c) {
       for (let r = 0; r < this.n_rows; ++r) {
@@ -1681,6 +1777,9 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
     }
   }
+
+  // update alias
+  Matrix.prototype.update = Matrix.prototype.compute_matrix;
 
   Matrix.prototype.draw = function() {
     // Reset the frame:

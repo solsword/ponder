@@ -9,6 +9,9 @@ define(["d3"], function (d3) {
   // Default number of stops for creating CSS gradient backgrounds
   var DEFAULT_GRADIENT_STOPS = 24;
 
+  // Out-of-DOM SVG for testing font sizes
+  var FONT_SIZE_ARENA;
+
   /*
    * Helper functions
    */
@@ -386,6 +389,17 @@ define(["d3"], function (d3) {
     return result.join("");
   }
 
+  function get_text_size(string, font_size) {
+    if (FONT_SIZE_ARENA == undefined) {
+      FONT_SIZE_ARENA = d3.create("svg");
+    }
+    var t = d3.select(FONT_SIZE_ARENA)
+      .text(string)
+      .attr("font-size", font_size);
+
+    return get_bbox(t);
+  }
+
   return {
     "EPSILON": EPSILON,
     "posmod": posmod,
@@ -403,5 +417,6 @@ define(["d3"], function (d3) {
     "css_scheme": css_scheme,
     "normalize_vector": normalize_vector,
     "unquote": unquote,
+    "get_text_size": get_text_size,
   };
 });

@@ -20,6 +20,107 @@ function (d3, utils, qt, prp) {
   // Radius used for quadtree points when points_allowed is set to undefined.
   QT_POINT_RADIUS = 1.5;
 
+  // Computes a table layout with room at the top and left for the given
+  // labels. The default padding (surrounding the whole table) is 0.02, while
+  // the default margins are 0.15 each. Returns an object with the following
+  // fields:
+  //
+  //   padding:
+  //     Padding amount on all sides. By default 0.02 * min(width, height).
+  //   cl_height:
+  //     Height reserved for column labels.
+  //   rl_width:
+  //     Width reserved for row labels.
+  //   content_top:
+  //     Distance from outer border to top of content (padding + cl_height).
+  //   content_left:
+  //     Distance from border to left edge of content (padding + rl_width).
+  //   content_width,
+  //   content_height:
+  //     Width and height of content area.
+  //   cell_width,
+  //   cell_height:
+  //     Width and height of content cells.
+  //   cl_font_size,
+  //   rl_font_size:
+  //     Font size TODO!strings for the column and row labels.
+  //   cell_font_size:
+  //     Font size for the cells.
+  //     TODO: HERE!
+  function compute_layout(
+    row_labels,
+    col_labels,
+    padding,
+    row_margin,
+    col_margin
+  ) {
+    if (padding == undefined) {
+      padding = 0.02;
+    }
+
+    var n_rows = row_labels.length;
+    var n_cols = col_labels.length;
+
+    var eh = element.attr("height"); // element height
+    var ew = element.attr("width"); // element width
+
+    var pad = padding * Math.min(eh, ew);
+
+    var cl_height;
+    if (n_cols > 0) {
+      cl_height = 0.15 * eh; // starting value
+    } else {
+      cl_height = 0;
+    }
+    var rl_width;
+    if (n_rows > 0) {
+      rl_width = 0.15 * ew; // starting value
+    } else {
+      rl_width = 0;
+    }
+
+    var ch; // cell height
+    if (n_rows > 0) {
+      ch = (eh - 2*pad - cl_height) / n_rows;
+    } else {
+      ch = eh - 2*pad - cl_height;
+    }
+    var rl_font_size = (ch * 0.96) + "px";
+
+    var cw; // cell width
+    if (n_cols > 0) {
+      cw = (ew - 2*pad - rl_width) / n_cols;
+    } else {
+      cw = (ew - 2*pad - rl_width);
+    }
+    var cl_font_size = (cw * 0.96) + "px";
+  }
+
+  function compute_labeled_layout(row_labels, col_labels, padding) {
+    while (true) { // iterate to convergence
+      // evaluate space requirements at current font size:
+      var required_width = undefined;
+      var required_height = undefined;
+      for (let i = 0; i < n_rows; ++i) {
+        var lt = row_labels[i];
+        var ts = utils.get_text_size(lt, rl_font_size);
+        if (required_width == undefined || required_width < ts.width) {
+          required_width = ts.width;
+        }
+      }
+      for (let i = 0; i < n_cols; ++i) {
+        var lt = col_labels[i];
+        var ts = utils.get_text_size(lt, cl_font_size);
+        if (required_height == undefined || required_height < ts.height) {
+          required_height = ts.height;
+        }
+      }
+
+      //if (required_width < 
+      // TODO: HERE
+    }
+  }
+
   /*
    * Data transformation functions
    */
@@ -274,12 +375,17 @@ function (d3, utils, qt, prp) {
 
   // Draws a horizontal histogram with value labels on the left, sorting bars
   // by their height. Optional parameters:
+  //    ordering
+  //      Specifies the natural ordering of the bins (ignored if sort is
+  //      given).
   //    bar_limit
   //      Crops off bars beyond the limit. Missing = no limit. A value of
   //      ~30-50 is suggested to avoid text overlap. Can give explicitly as
   //      'undefined' if you want to pass other optional options.
   //    color_scale (defaults to DEFAULT_COLOR_SCALE)
   //      Used to color the bars
+  //    sort
+  //      Sort the bars by their values from highest to lowest.
   //    normalize
   //      If it's a single value, each count is divided. Pass the number of
   //      source items here to graph averages instead of total counts. Can also
@@ -288,6 +394,7 @@ function (d3, utils, qt, prp) {
   function draw_histogram(
     element,
     counts,
+    ordering,
     bar_limit,
     color_scale,
     sort,
@@ -338,7 +445,9 @@ function (d3, utils, qt, prp) {
 
     var pairs = [];
     var max = undefined;
-    for (var key in counts) {
+    var iterate_over = ordering || Object.keys(counts);
+    for (let i = 0; i < iterate_over.length; ++i) {
+      var key = iterate_over[i];
       if (counts.hasOwnProperty(key)) {
         var bv = bar_value(key);
         pairs.push([key, bv]);
@@ -348,12 +457,9 @@ function (d3, utils, qt, prp) {
       }
     }
 
-    // reverse sort order to put largest bars first
     if (sort) {
+      // reverse sort order to put largest bars first
       pairs.sort((a, b) => -(a[1] - b[1]));
-    } else {
-      // TODO: Better domain-based sorting?
-      pairs.sort((a, b) => a[0] < b[0] ? -1: 1);
     }
 
     if (bar_limit != undefined) {

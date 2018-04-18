@@ -27,6 +27,9 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   var LEFT_VIEW = undefined;
   var RIGHT_VIEW = undefined;
 
+  // The right-pane mode select widget
+  var RIGHT_SELECT = undefined;
+
   // The transformation widget
   var TRANSFORMER = undefined;
 
@@ -145,6 +148,36 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       );
   }
 
+  function set_right_mode(data, mode) {
+    if (RIGHT_VIEW != undefined) {
+      RIGHT_VIEW.frame.selectAll("*").remove();
+      RIGHT_VIEW.controls.forEach(c => c.node.remove());
+    }
+    if (mode == "histogram") {
+      RIGHT_VIEW = new vw.Histogram(
+        "right",
+        data,
+        LEFT_VIEW.selected,
+        ds.nth_of_kind(data, "map", 0) || ds.nth_of_kind(data, "number", 0),
+      );
+    } else if (mode == "matrix") {
+      RIGHT_VIEW = new vw.Matrix(
+        "right",
+        data,
+        LEFT_VIEW.selected,
+        ds.nth_of_kind(data, "string", 0) || ds.nth_of_kind(data, "tensor", 0),
+        ds.nth_of_kind(data, "string", 1) || ds.nth_of_kind(data, "tensor", 1),
+        undefined,
+      );
+    } else {
+      console.warn("Invalid mode argument to set_right_mode: '" + mode + "'");
+    }
+    RIGHT_VIEW.bind_frame(RIGHT_FRAME);
+    RIGHT_VIEW.put_controls(RIGHT_CONTROLS);
+    RIGHT_WINDOW.select("#right_placeholder").style("display", "none");
+    RIGHT_VIEW.draw();
+  }
+
   /*
    * Setup functions
    */
@@ -164,6 +197,21 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
     // Names of each data property:
     var inames = ds.index_names(data);
+
+    // right window mode select
+    if (RIGHT_SELECT != undefined) {
+      RIGHT_SELECT.node.remove();
+    }
+    RIGHT_SELECT = new vw.SelectWidget(
+      "Right pane mode: ",
+      ["histogram", "matrix"],
+      "histogram",
+      function (selected) {
+        set_right_mode(data, selected)
+      }
+    );
+
+    RIGHT_SELECT.put_controls(d3.select("#top_panel"));
 
     // extra transform option
     if (TRANSFORMER != undefined) {
@@ -235,34 +283,13 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     if (RIGHT_VIEW != undefined) {
       d3.select("#right_controls").selectAll("*").remove();
     }
-    /*
-    RIGHT_VIEW = new vw.Histogram(
-      "right",
-      data,
-      LEFT_VIEW.selected,
-      ds.nth_of_kind(data, "map", 0),
-    );
-    */
-    RIGHT_VIEW = new vw.Matrix(
-      "right",
-      data,
-      LEFT_VIEW.selected,
-      ds.nth_of_kind(data, "string", 0),
-      ds.nth_of_kind(data, "string", 1),
-      undefined,
-    );
-    RIGHT_VIEW.bind_frame(RIGHT_FRAME);
-    RIGHT_VIEW.put_controls(RIGHT_CONTROLS);
-    RIGHT_WINDOW.select("#right_placeholder").style("display", "none");
-    RIGHT_VIEW.draw();
+
+    set_right_mode(data, "histogram")
 
     // hook view together
     LEFT_VIEW.subscribe_to_selection(function (items) {
       RIGHT_VIEW.set_records(items);
-      /* TODO: How this dynamically?
-      RIGHT_VIEW.compute_counts();
-      */
-      RIGHT_VIEW.compute_matrix();
+      RIGHT_VIEW.update();
       RIGHT_VIEW.draw();
     });
   }
