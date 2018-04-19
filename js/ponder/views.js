@@ -1330,6 +1330,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
       }
 
       if (!used_discrete) { // if the discrete attempt failed
+        bins = bins || DEFAULT_BINS;
         if (this.domain === undefined) {
           dom = ds.get_domain(this.data, this.field);
         } else if (this.domain === "auto") {

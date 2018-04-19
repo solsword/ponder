@@ -496,7 +496,6 @@ function (d3, utils, qt, prp) {
 
     // x-value for zero
     var zero_x = bx + bw * (0 - min) / (max - min)
-    console.log(min + " → " + zero_x);
 
     function bar_width(d) {
       if (

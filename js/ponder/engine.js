@@ -46,6 +46,18 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
    */
 
   function resize() {
+    var lw = utils.get_width(LEFT_WINDOW);
+    var lhm = lw * MARGIN;
+    var lh = utils.get_height(LEFT_WINDOW);
+    var lvm = lh * MARGIN;
+    LEFT_FRAME.attr("width", lw - 2*lhm).attr("height", lh - 2*lvm);
+
+    var rw = utils.get_width(RIGHT_WINDOW);
+    var rhm = lw * MARGIN;
+    var rh = utils.get_height(RIGHT_WINDOW);
+    var rvm = lh * MARGIN;
+    RIGHT_FRAME.attr("width", rw - 2*rhm).attr("height", rh - 2*rvm);
+
     if (LEFT_VIEW && LEFT_VIEW.frame) {
       LEFT_VIEW.rebind();
       LEFT_VIEW.draw();
