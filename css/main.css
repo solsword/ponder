@@ -51,9 +51,24 @@ a:active {
   padding: 0.5%;
 }
 
+#windows {
+  width: 100%;
+}
+
 #windows td {
   height: 600px;
-  width: 48%;
+}
+
+#windows td:first-child {
+  width: 38%;
+}
+
+#windows td:nth-child(2) {
+  width: 18%;
+}
+
+#windows td:last-child {
+  width: 38%;
 }
 
 .window {
@@ -166,4 +181,8 @@ table.fields_list th, table.fields_list td {
 #names_scroll_container {
   max-height: 36ex;
   overflow-y: scroll;
+}
+
+.disabled {
+  color: #aaa;
 }

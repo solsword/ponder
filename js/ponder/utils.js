@@ -59,6 +59,10 @@ define(["d3"], function (d3) {
     return select.options[select.selectedIndex].value;
   }
 
+  function get_text_value(text_input) {
+    return text_input.value;
+  }
+
   function average_vectors(vector_list, weights) {
     var result = [];
     for (var j = 0; j < vector_list[0].length; ++j) {
@@ -408,6 +412,7 @@ define(["d3"], function (d3) {
     "get_height": get_height,
     "get_n_attr": get_n_attr,
     "get_selected_value": get_selected_value,
+    "get_text_value": get_text_value,
     "average_vectors": average_vectors,
     "is_equal": is_equal,
     "is_fp_equal": is_fp_equal,

@@ -24,9 +24,6 @@ function (d3, utils, ds) {
   // pole coordinates (with a bit of trig). See pole_coordinates below for
   // details of where things are placed.
   Circularize.prototype.pole_index = function (i) {
-    return i;
-    /*
-     * DEBUG
     var n_poles = this.vt.dimensions;
     var step;
     if (n_poles <= 6) {
@@ -45,7 +42,6 @@ function (d3, utils, ds) {
     var cycle_steps = i % steps_around;
 
     return which_cycle + step * cycle_steps;
-    */
   }
 
   // Returns the coordinates for the ith pole. The poles for each dimension are
@@ -68,7 +64,7 @@ function (d3, utils, ds) {
     var n_poles = this.vt.dimensions;
     var vec = this.vt.getter(record);
     var norm = utils.normalize_vector(vec);
-    var ns = norm.reduce((a, b) => a + b);
+    var ns = norm.reduce((a, b) => Math.abs(a) + Math.abs(b));
     var r = [0, 0];
     for (let i = 0; i < n_poles; ++i) {
       var pc = this.pole_coordinates(i);

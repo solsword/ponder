@@ -5,6 +5,7 @@ define(
   "./dataset",
   "./views",
   "./transforms",
+  "./filters",
   "./quadtree",
   "./viz",
   "./properties"
@@ -32,6 +33,9 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
   // The transformation widget
   var TRANSFORMER = undefined;
+
+  // The filter widget
+  var FILTER = undefined;
 
   // DOM objects
   var LEFT_WINDOW;
@@ -265,6 +269,14 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     );
 
     TRANSFORMER.put_controls(d3.select("#top_panel"));
+
+    // filters
+    FILTER = new vw.ComparisonFilterControls(
+      data,
+      ds.nth_of_kind(data, ["number", "string"], 0)
+    );
+
+    FILTER.put_controls(d3.select("#filters"));
 
     // left view
     if (LEFT_VIEW != undefined) {

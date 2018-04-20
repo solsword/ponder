@@ -6,9 +6,10 @@ define(
   "./quadtree",
   "./dataset",
   "./properties",
+  "./filters",
   "./viz"
 ],
-function (d3, d3sc, utils, qt, ds, prp, viz) {
+function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
 
   //////////////////////
   // Shared constants //
@@ -520,6 +521,116 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
         }
       });
   }
+
+  ///////////////////////////////
+  // ComparisonFilter Controls //
+  ///////////////////////////////
+
+  // Controls for a ComparisonFilter.
+  function ComparisonFilterControls(dataset, default_index) {
+    this.filter = new fl.ComparisonFilter(dataset, default_index, "==", 0);
+    this.active = true;
+    this.node = undefined;
+  }
+
+  ComparisonFilterControls.prototype.set_index = function (selection) {
+    this.filter.set_index(selection);
+  }
+
+  ComparisonFilterControls.prototype.set_cmp = function (selection) {
+    this.filter.set_comparator(selection);
+  }
+
+  ComparisonFilterControls.prototype.set_value = function (value) {
+    this.filter.set_value(value);
+  }
+
+  ComparisonFilterControls.prototype.set_active = function (active) {
+    this.active = active;
+    if (this.active) {
+      this.node.attr("class", "controls_row");
+      this.node.selectAll(".filter_control").attr("disabled", null);
+    } else {
+      this.node.attr("class", "controls_row disabled");
+      this.node.selectAll(".filter_control").attr("disabled", true);
+    }
+  }
+
+  ComparisonFilterControls.prototype.put_controls = function (node) {
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
+    var the_controls = this;
+
+    // toggle checkbox:
+    this.node.append("input")
+      .attr("type", "checkbox")
+      .attr("checked", this.active ? true : null)
+      .on("change", function () {
+        the_controls.set_active(this.checked)
+      });
+
+    // initial text:
+    this.node.append("span")
+      .attr("class", "label")
+      .text("Filter by: ")
+
+    // index select
+    var index_select = this.node.append("select")
+      .attr("class", "filter_control")
+      .on("change", function () {
+        the_controls.set_index(utils.get_selected_value(this));
+      });
+    index_select.selectAll("option").exit().remove();
+    index_select.selectAll("option")
+      .data(ds.index_names(the_controls.filter.data))
+    .enter().append("option")
+      .attr("value", d => d)
+      .text(d => d);
+    index_select.selectAll("option")
+      .filter(
+        d =>
+          d == ds.get_name(the_controls.filter.data, the_controls.filter.index)
+      )
+      .attr("selected", true);
+
+    // comparator select
+    var cmp_select = this.node.append("select")
+      .attr("class", "filter_control")
+      .on("change", function () {
+        the_controls.set_cmp(utils.get_selected_value(this));
+      });
+    cmp_select.selectAll("option").exit().remove();
+    cmp_select.selectAll("option")
+      .data([ "==", "!=", "<", "<=", ">", ">=" ])
+    .enter().append("option")
+      .attr("value", d => d)
+      .text(d => d);
+    cmp_select.selectAll("option")
+      .filter(d => d == the_controls.filter.comparator)
+      .attr("selected", true);
+
+    // value select
+    var cmp_select = this.node.append("input")
+      .attr("class", "filter_control")
+      .attr("type", "text")
+      .attr("value", the_controls.filter.value)
+      .on("change", function () {
+        the_controls.set_value(utils.get_text_value(this));
+      });
+  }
+
+  ComparisonFilterControls.apply_filter = function (records) {
+    return this.filter.filter(records);
+  }
+
+  ///////////////////////////
+  // ValueSetFilter Widget //
+  ///////////////////////////
+
+  // TODO: HERE
 
   //////////////////
   // Generic View //
@@ -1809,6 +1920,7 @@ function (d3, d3sc, utils, qt, ds, prp, viz) {
     "SelectWidget": SelectWidget,
     "ColorScaleWidget": ColorScaleWidget,
     "MultiselectWidget": MultiselectWidget,
+    "ComparisonFilterControls": ComparisonFilterControls,
     "View": View,
     "LensView": LensView,
     "Histogram": Histogram,
