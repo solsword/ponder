@@ -16,8 +16,9 @@ function (d3, utils, ds) {
 
   // Static applicability check
   Circularize.applicable_to = function (dataset, index) {
-    var vt = ds.vector_transform(dataset, index);
-    return vt.dimensions > 1;
+    if (typeof index == "string") { index = ds.lookup_index(dataset, index); }
+    var typ = ds.get_type(dataset, index);
+    return typ.kind == "number" || typ.kind == "string";
   }
 
   // Returns the linearized index for the ith pole, which dictates that pole's

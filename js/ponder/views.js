@@ -526,23 +526,28 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   // ComparisonFilter Controls //
   ///////////////////////////////
 
-  // Controls for a ComparisonFilter.
-  function ComparisonFilterControls(dataset, default_index) {
+  // Controls for a ComparisonFilter. The callback will be called with the
+  // entire object as an argument after every parameter change.
+  function ComparisonFilterControls(dataset, default_index, callback) {
     this.filter = new fl.ComparisonFilter(dataset, default_index, "==", 0);
     this.active = true;
+    this.callback = callback;
     this.node = undefined;
   }
 
   ComparisonFilterControls.prototype.set_index = function (selection) {
     this.filter.set_index(selection);
+    if (this.callback) { this.callback(this); }
   }
 
   ComparisonFilterControls.prototype.set_cmp = function (selection) {
     this.filter.set_comparator(selection);
+    if (this.callback) { this.callback(this); }
   }
 
   ComparisonFilterControls.prototype.set_value = function (value) {
     this.filter.set_value(value);
+    if (this.callback) { this.callback(this); }
   }
 
   ComparisonFilterControls.prototype.set_active = function (active) {
@@ -554,6 +559,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       this.node.attr("class", "controls_row disabled");
       this.node.selectAll(".filter_control").attr("disabled", true);
     }
+    if (this.callback) { this.callback(this); }
   }
 
   ComparisonFilterControls.prototype.put_controls = function (node) {
@@ -575,7 +581,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     // initial text:
     this.node.append("span")
       .attr("class", "label")
-      .text("Filter by: ")
+      .text("Compare: ")
 
     // index select
     var index_select = this.node.append("select")
@@ -585,7 +591,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       });
     index_select.selectAll("option").exit().remove();
     index_select.selectAll("option")
-      .data(ds.index_names(the_controls.filter.data))
+      .data(
+        ds.index_names(the_controls.filter.data)
+          .filter(idx => fl.ComparisonFilter.applicable_to(idx))
+      )
     .enter().append("option")
       .attr("value", d => d)
       .text(d => d);
@@ -595,6 +604,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           d == ds.get_name(the_controls.filter.data, the_controls.filter.index)
       )
       .attr("selected", true);
+
+    // bit of padding
+    this.node.append("span").text(" ")
 
     // comparator select
     var cmp_select = this.node.append("select")
@@ -612,9 +624,12 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       .filter(d => d == the_controls.filter.comparator)
       .attr("selected", true);
 
+    // bit of padding
+    this.node.append("span").text(" ")
+
     // value select
     var cmp_select = this.node.append("input")
-      .attr("class", "filter_control")
+      .attr("class", "filter_control short_text")
       .attr("type", "text")
       .attr("value", the_controls.filter.value)
       .on("change", function () {
@@ -622,15 +637,136 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       });
   }
 
-  ComparisonFilterControls.apply_filter = function (records) {
-    return this.filter.filter(records);
+  ComparisonFilterControls.prototype.apply_filter = function (records) {
+    if (this.active) {
+      return this.filter.filter(records);
+    } else {
+      return records;
+    }
   }
 
-  ///////////////////////////
-  // ValueSetFilter Widget //
-  ///////////////////////////
+  /////////////////////////////
+  // ValueSetFilter Controls //
+  /////////////////////////////
 
-  // TODO: HERE
+  // Controls for a ValueSetFilter. The callback will be called with the
+  // entire object as an argument after every parameter change.
+  function ValueSetFilterControls(dataset, default_index, callback) {
+    this.filter = new fl.ValueSetFilter(dataset, default_index, []);
+    this.active = true;
+    this.callback = callback;
+    this.node = undefined;
+  }
+
+  ValueSetFilterControls.prototype.set_index = function (selection) {
+    this.filter.set_index(selection);
+    this.refresh_values();
+    if (this.callback) { this.callback(this); }
+  }
+
+  ValueSetFilterControls.prototype.set_accept = function(idx_or_string, accept){
+    this.filter.set_accept(idx_or_string, accept);
+    if (this.callback) { this.callback(this); }
+  }
+
+  ValueSetFilterControls.prototype.set_active = function (active) {
+    this.active = active;
+    if (this.active) {
+      this.node.attr("class", "controls_row");
+      this.node.selectAll(".filter_control").attr("disabled", null);
+    } else {
+      this.node.attr("class", "controls_row disabled");
+      this.node.selectAll(".filter_control").attr("disabled", true);
+    }
+    if (this.callback) { this.callback(this); }
+  }
+
+  ValueSetFilterControls.prototype.refresh_values = function () {
+    if (this.selectors_div != undefined) {
+      this.selectors_div.selectAll("*").remove();
+    } else {
+      this.selectors_div = this.node.append("div");
+      this.selectors_div.attr("class", "scrolling_options");
+    }
+
+    // Pick up values and labels from the filter's categorical transform
+    var n_values = this.filter.ct.n_categories;
+    var v_labels = this.filter.ct.labels;
+
+    var the_controls = this;
+
+    for (let i = 0; i < n_values; ++i) {
+      this.selectors_div.append("input")
+        .attr("type", "checkbox")
+        .attr("checked", the_controls.filter.will_accept(i) ? true : null)
+        .on("change", function () {
+          the_controls.set_accept(i, this.checked);
+        });
+
+      // label
+      this.selectors_div.append("span").text(" " + v_labels[i]);
+      this.selectors_div.append("br");
+    }
+  }
+
+  ValueSetFilterControls.prototype.put_controls = function (node) {
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
+    var the_controls = this;
+
+    // toggle checkbox:
+    this.node.append("input")
+      .attr("type", "checkbox")
+      .attr("checked", this.active ? true : null)
+      .on("change", function () {
+        the_controls.set_active(this.checked)
+      });
+
+    // initial text:
+    this.node.append("span")
+      .attr("class", "label")
+      .text("Accept values: ");
+
+    // index select
+    var index_select = this.node.append("select")
+      .attr("class", "filter_control")
+      .on("change", function () {
+        the_controls.set_index(utils.get_selected_value(this));
+      });
+    index_select.selectAll("option").exit().remove();
+    index_select.selectAll("option")
+      .data(
+        ds.index_names(the_controls.filter.data)
+          .filter(idx => fl.ValueSetFilter.applicable_to(idx))
+      )
+    .enter().append("option")
+      .attr("value", d => d)
+      .text(d => d);
+
+    index_select.selectAll("option")
+      .filter(
+        d =>
+          d == ds.get_name(the_controls.filter.data, the_controls.filter.index)
+      )
+      .attr("selected", true);
+
+    // bit of padding
+    this.node.append("span").text(" ")
+
+    // comparator select
+    this.refresh_values();
+  }
+
+  ValueSetFilterControls.prototype.apply_filter = function (records) {
+    if (this.active) {
+      return this.filter.filter(records);
+    } else {
+      return records;
+    }
+  }
 
   //////////////////
   // Generic View //
@@ -1921,6 +2057,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     "ColorScaleWidget": ColorScaleWidget,
     "MultiselectWidget": MultiselectWidget,
     "ComparisonFilterControls": ComparisonFilterControls,
+    "ValueSetFilterControls": ValueSetFilterControls,
     "View": View,
     "LensView": LensView,
     "Histogram": Histogram,

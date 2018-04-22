@@ -34,6 +34,10 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   // The transformation widget
   var TRANSFORMER = undefined;
 
+  // The lens toggle
+  var LENS_TOGGLE = undefined;
+  var IGNORE_SELECTION = false;
+
   // The filter widget
   var FILTER = undefined;
 
@@ -194,6 +198,33 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     RIGHT_VIEW.draw();
   }
 
+  function update_selection(dataset) {
+    var selected;
+    var filtered;
+    if (IGNORE_SELECTION) {
+      selected = dataset.records;
+    } else {
+      selected = LEFT_VIEW.selected;
+    }
+    if (FILTER) {
+      filtered = FILTER.apply_filter(selected);
+    } else {
+      filtered = selected;
+    }
+
+    // Update selection count
+    var nsel = selected.length;
+    var nfil = filtered.length;
+
+    d3.select("#selcount").selectAll("*").remove()
+    d3.select("#selcount").append("span")
+      .text(nsel + " selected » " + nfil + " filtered")
+
+    RIGHT_VIEW.set_records(filtered);
+    RIGHT_VIEW.update();
+    RIGHT_VIEW.draw();
+  }
+
   /*
    * Setup functions
    */
@@ -241,7 +272,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         var result = [];
         for (let i = 0; i < inames.length; ++i) {
           var inm = inames[i];
-          if (tf.Circularize.applicable_to(data, ds.lookup_index(data, inm))) {
+          if (tf.Circularize.applicable_to(data, inm)) {
             result.push(inm);
           }
         }
@@ -270,11 +301,37 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
     TRANSFORMER.put_controls(d3.select("#top_panel"));
 
+    // the lens toggle
+    if (LENS_TOGGLE != undefined) {
+      LENS_TOGGLE.node.remove();
+    }
+    LENS_TOGGLE = new vw.ToggleWidget(
+      "Select all",
+      false,
+      function (ignore) {
+        IGNORE_SELECTION = ignore;
+        update_selection(data)
+      }
+    );
+
+    LENS_TOGGLE.put_controls(d3.select("#filters"));
+
     // filters
+    if (FILTER != undefined) {
+      FILTER.node.remove();
+    }
+    /*
     FILTER = new vw.ComparisonFilterControls(
       data,
-      ds.nth_of_kind(data, ["number", "string"], 0)
+      ds.nth_of_kind(data, ["number", "string"], 0),
+      function () { update_selection(data); }
     );
+    */
+    FILTER = new vw.ValueSetFilterControls(
+      data,
+      ds.nth_of_kind(data, ["number", "string", "tensor", "map"], 0),
+      function () { update_selection(data); }
+    )
 
     FILTER.put_controls(d3.select("#filters"));
 
@@ -310,11 +367,11 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
     set_right_mode(data, "histogram")
 
+    update_selection(data);
+
     // hook view together
     LEFT_VIEW.subscribe_to_selection(function (items) {
-      RIGHT_VIEW.set_records(items);
-      RIGHT_VIEW.update();
-      RIGHT_VIEW.draw();
+      update_selection(data);
     });
   }
 
