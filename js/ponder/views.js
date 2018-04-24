@@ -26,6 +26,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   // Regex for finding an integer in a string:
   var FIND_INT = /[0-9]+/
 
+  // Threshold for using textbox selection for multiple values
+  var LOTS_OF_VALUES_THRESHOLD = 5;
+
   //////////////////
   // ToggleWidget //
   //////////////////
@@ -682,11 +685,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   }
 
   ValueSetFilterControls.prototype.refresh_values = function () {
+    if (this.selectors_input != undefined) {
+      this.selectors_input.remove();
+    }
     if (this.selectors_div != undefined) {
-      this.selectors_div.selectAll("*").remove();
-    } else {
-      this.selectors_div = this.node.append("div");
-      this.selectors_div.attr("class", "scrolling_options");
+      this.selectors_div.remove();
     }
 
     // Pick up values and labels from the filter's categorical transform
@@ -694,18 +697,121 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     var v_labels = this.filter.ct.labels;
 
     var the_controls = this;
+    if (n_values <= LOTS_OF_VALUES_THRESHOLD) {
+      this.selectors_div = this.node.append("div");
+      this.selectors_div.attr("class", "scrolling");
+      for (let i = 0; i < n_values; ++i) {
+        this.selectors_div.append("input")
+          .attr("type", "checkbox")
+          .attr("checked", the_controls.filter.will_accept(i) ? true : null)
+          .on("change", function () {
+            the_controls.set_accept(i, this.checked);
+          });
 
-    for (let i = 0; i < n_values; ++i) {
-      this.selectors_div.append("input")
-        .attr("type", "checkbox")
-        .attr("checked", the_controls.filter.will_accept(i) ? true : null)
-        .on("change", function () {
-          the_controls.set_accept(i, this.checked);
+        // label
+        this.selectors_div.append("span").text(" " + v_labels[i]);
+        this.selectors_div.append("br");
+      }
+    } else { // too many values to use checkboxes
+      this.selectors_input = this.node.append("input");
+      this.selectors_input
+        .attr("type", "text")
+        .attr("class", "field_select")
+        .on("click touchstart keyup", function () {
+          var evt = d3.event;
+          var sofar = utils.get_text_value(the_controls.selectors_input.node());
+          var fragments = sofar.split(" ");
+          var options = Array.from({length: n_values}, (x,i) => i);
+          if (sofar != "") {
+            for (let fr of fragments) {
+              var subset = new Set(utils.text_match_indices(v_labels, fr));
+              var next = [];
+              for (let i = 0; i < options.length; ++i) {
+                if (subset.has(options[i])) {
+                  next.push(options[i]);
+                }
+              }
+              options = next;
+            }
+          }
+          if (evt.key && evt.key === "Escape") {
+            // just clean up
+            the_controls.selectors_input.property("value", "");
+            if (the_controls.matches_dropdown) {
+              the_controls.matches_dropdown.remove();
+              the_controls.matches_dropdown = undefined;
+            }
+          } else if (evt.key && evt.key === "Enter" && options.length > 0) {
+            // lock-in top option
+            var sel = options[0];
+            if (!the_controls.filter.will_accept(sel)) {
+              the_controls.set_accept(sel, true);
+              the_controls.refresh_values();
+            }
+            // cleanup:
+            the_controls.selectors_input.property("value", "");
+            if (the_controls.matches_dropdown) {
+              the_controls.matches_dropdown.remove();
+              the_controls.matches_dropdown = undefined;
+            }
+          } else { // otherwise re-filter options
+            if (the_controls.matches_dropdown === undefined) {
+              the_controls.matches_dropdown = the_controls.node.insert(
+                "div",
+                ".selected_values"
+              );
+              the_controls.matches_dropdown
+                .attr("class", "matchbox");
+            } else {
+              the_controls.matches_dropdown.selectAll("*").remove();
+            }
+            if (options.length == 0) {
+              the_controls.matches_dropdown.append("span")
+                .attr("class", "match_empty")
+                .text("<no matches>");
+            }
+            for (let i = 0; i < options.length; ++i) {
+              let lbl = v_labels[options[i]];
+              the_controls.matches_dropdown.append("a")
+                .text(lbl)
+                .attr("class", "match_item")
+                .attr("data-which", options[i])
+                .on("click touchstart", function () {
+                  // lock-in this option
+                  var sel = options[i];
+                  if (!the_controls.filter.will_accept(sel)) {
+                    the_controls.set_accept(sel, true);
+                    the_controls.refresh_values();
+                  }
+                  // cleanup:
+                  the_controls.selectors_input.property("value", "");
+                  if (the_controls.matches_dropdown) {
+                    the_controls.matches_dropdown.remove();
+                    the_controls.matches_dropdown = undefined;
+                  }
+                });
+              the_controls.matches_dropdown.append("br");
+            }
+          }
         });
-
-      // label
-      this.selectors_div.append("span").text(" " + v_labels[i]);
-      this.selectors_div.append("br");
+      this.selectors_div = this.node.append("div")
+        .attr("class", "selected_values");
+      for (let i = 0; i < n_values; ++i) {
+        if (the_controls.filter.will_accept(i)) {
+          let match_item = this.selectors_div.append("span");
+          match_item
+            .attr("class", "match_item")
+            .append("a")
+              .attr("class", "x_button")
+              .text("×")
+              .on("click touchstart", function () {
+                the_controls.set_accept(i, false);
+                match_item.remove();
+              })
+          match_item.append("span").text(v_labels[i] + " ");
+          match_item.append("br");
+        }
+      }
     }
   }
 

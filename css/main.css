@@ -196,8 +196,41 @@ table.fields_list th, table.fields_list td {
   width: 6em;
 }
 
-.scrolling_options {
+.scrolling {
   padding: 4pt;
   max-height: 8em;
   overflow-y: scroll;
+}
+
+.match_item {
+  color: #79f;
+}
+
+.match_empty {
+  color: #f97;
+}
+
+.x_button {
+  display: inline-block;
+  height: 1.2ex;
+  line-height: 1ex;
+  color: #fff;
+  background: #79f;
+  border: 1pt solid #79f;
+  border-radius: 3pt;
+}
+
+.field_select {
+  margin: 6pt 0pt;
+  width: 100%;
+}
+
+.matchbox {
+  position: absolute;
+  max-height: 20em;
+  overflow-y: scroll;
+  border: 1pt solid black;
+  background: #fff;
+  padding: 4pt;
+  margin-top: -6pt;
 }

@@ -404,6 +404,23 @@ define(["d3"], function (d3) {
     return get_bbox(t);
   }
 
+  // https://stackoverflow.com/questions/3446170/escape-string-for-use-in-javascript-regex
+  function escape_regex(str) {
+    return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+  }
+
+  function text_match_indices(options, fragment) {
+    var results = [];
+    var fre = new RegExp(escape_regex(("" + fragment).toLowerCase()));
+    for (let i = 0; i < options.length; ++i) {
+      var test_against = options[i].toLowerCase();
+      if (fre.exec(test_against) != null) {
+        results.push(i);
+      }
+    }
+    return results;
+  }
+
   return {
     "EPSILON": EPSILON,
     "posmod": posmod,
@@ -423,5 +440,6 @@ define(["d3"], function (d3) {
     "normalize_vector": normalize_vector,
     "unquote": unquote,
     "get_text_size": get_text_size,
+    "text_match_indices": text_match_indices,
   };
 });
