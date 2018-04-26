@@ -79,8 +79,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   // SelectWidget //
   //////////////////
 
-  // A select box that includes the given options (preceded by the given text).
-  // The callback will be called with the selected value as an argument
+  // A select box that includes the given options (preceded by the given
+  // label). The callback will be called with the selected value as an argument
   // whenever the user selects a new option.
   function SelectWidget(
     label,
@@ -107,7 +107,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     } else {
       ltext = this.label;
     }
-    this.node.text(this.label);
+    this.node.text(ltext);
     var the_widget = this;
     var opts;
     if (typeof this.options === "function") {
@@ -118,6 +118,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     var dopt;
     if (typeof this.default_option === "function") {
       dopt = this.default_option(this);
+    } else if (this.default_option != undefined) {
+      dopt = this.default_option;
     } else {
       dopt = this.options[0];
     }
@@ -136,6 +138,140 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     select.selectAll("option")
       .filter(d => d == dopt)
       .attr("selected", true);
+  }
+
+  //////////////////////
+  // TextSelectWidget //
+  //////////////////////
+
+  // An input box that drops down options and completes matching ones from
+  // typed text (preceded by the given label). The callback will be called with
+  // the selected value as an argument whenever the user selects a new option.
+  function TextSelectWidget(
+    label,
+    options,
+    default_option,
+    callback
+  ) {
+    this.label = label;
+    this.options = options;
+    this.default_option = default_option || undefined;
+    this.callback = callback;
+    this.node = undefined;
+    this.input = undefined;
+    this.matches = undefined;
+    this.selected = this.default_option;
+  }
+
+  TextSelectWidget.prototype.cleanup = function () {
+    if (this.selected) {
+      this.input.property("value", this.selected);
+    } else {
+      this.input.property("value", "");
+    }
+
+    if (this.matches) {
+      this.matches.remove();
+      this.matches = undefined;
+    }
+  }
+
+  TextSelectWidget.prototype.designate = function (value) {
+    this.selected = value;
+    if (this.callback) {
+      this.callback(value);
+    }
+  }
+
+  TextSelectWidget.prototype.put_controls = function (node) {
+    var the_widget = this;
+    if (this.node == undefined) {
+      this.node = node.append("div").attr("class", "controls_row");
+    } else {
+      this.node.selectAll("*").remove();
+    }
+    var ltext;
+    if (typeof this.label === "function") {
+      ltext = this.label(this);
+    } else {
+      ltext = this.label;
+    }
+    this.node.text(ltext);
+
+    var opts;
+    if (typeof this.options === "function") {
+      opts = this.options(this);
+    } else {
+      opts = this.options;
+    }
+    var dopt;
+    if (typeof this.default_option === "function") {
+      dopt = this.default_option(this);
+    } else if (this.default_option != undefined) {
+      dopt = this.default_option;
+    } else {
+      dopt = this.options[0];
+    }
+    this.input = this.node.append("input")
+      .attr("type", "text")
+      .attr("class", "field_select")
+      .property("value", this.selected)
+      .on("focusout", function () {
+        // TODO: A better solution to this!?!
+        window.setTimeout(function () { the_widget.cleanup(); }, 300);
+      })
+      .on("focusin keyup", function () {
+        var evt = d3.event;
+        if (evt.type == "focusin") {
+          the_widget.input.property("value", "");
+        }
+        var sofar = utils.get_text_value(the_widget.input.node());
+        var fragments = sofar.split(" ");
+        var possibilities = Array.from({length: opts.length}, (x,i) => i);
+        if (sofar != "") {
+          for (let fr of fragments) {
+            var subset = new Set(
+              utils.text_match_indices(opts, fr)
+            );
+            var next = [];
+            for (let i = 0; i < possibilities.length; ++i) {
+              if (subset.has(possibilities[i])) {
+                next.push(possibilities[i]);
+              }
+            }
+            possibilities = next;
+          }
+        }
+        if (evt.key && evt.key === "Enter" && possibilities.length > 0) {
+          the_widget.designate(opts[possibilities[0]]);
+          the_widget.cleanup();
+        } else { // otherwise re-filter options
+          if (the_widget.matches === undefined) {
+            the_widget.matches = the_widget.node.insert(
+              "div",
+              ".selected_values"
+            );
+            the_widget.matches.attr("class", "matchbox");
+          } else {
+            the_widget.matches.selectAll("*").remove();
+          }
+          if (possibilities.length == 0) {
+            the_widget.matches.append("span")
+              .attr("class", "match_empty")
+              .text("<no matches>");
+          } else {
+            the_widget.matches.selectAll("a")
+              .data(possibilities.map(p => opts[p]))
+            .enter().append("a")
+              .attr("class", "match_item")
+              .text(d => d)
+              .on("click touchstart", function (d) {
+                the_widget.designate(d);
+                the_widget.cleanup();
+              });
+          }
+        }
+      });
   }
 
   /////////////////
@@ -775,7 +911,6 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
               the_controls.matches_dropdown.append("a")
                 .text(lbl)
                 .attr("class", "match_item")
-                .attr("data-which", options[i])
                 .on("click touchstart", function () {
                   // lock-in this option
                   var sel = options[i];
@@ -988,7 +1123,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "X-axis: ",
         function () { return ds.index_names(the_view.data); },
         function () { return ds.get_name(the_view.data, the_view.x_index); },
@@ -1001,7 +1136,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Y-axis: ",
         function () { return ds.index_names(the_view.data); },
         function () { return ds.get_name(the_view.data, the_view.y_index); },
@@ -1014,7 +1149,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Color by: ",
         function () {
           return ["density (default)"].concat(ds.index_names(the_view.data));
@@ -1047,7 +1182,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.controls.push(this.color_widget);
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Labels: ",
         function () {
           return ["none"].concat(ds.index_names(the_view.data));
@@ -1490,7 +1625,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     var the_view = this;
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Field: ",
         function () { return ds.index_names(the_view.data); },
         function () { return ds.get_name(the_view.data, the_view.field) },
@@ -1905,7 +2040,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     var the_view = this;
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Rows: ",
         function () { return ["none"].concat(ds.index_names(the_view.data)); },
         function () { return ds.get_name(the_view.data, the_view.rows_field); },
@@ -1923,7 +2058,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Columns: ",
         function () { return ["none"].concat(ds.index_names(the_view.data)); },
         function () { return ds.get_name(the_view.data, the_view.cols_field); },
@@ -1941,7 +2076,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
 
     this.controls.push(
-      new SelectWidget(
+      new TextSelectWidget(
         "Value: ",
         function () { return ["none"].concat(ds.index_names(the_view.data)); },
         function () { return ds.get_name(the_view.data, the_view.vals_field); },
@@ -2160,6 +2295,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   return {
     "ToggleWidget": ToggleWidget,
     "SelectWidget": SelectWidget,
+    "TextSelectWidget": TextSelectWidget,
     "ColorScaleWidget": ColorScaleWidget,
     "MultiselectWidget": MultiselectWidget,
     "ComparisonFilterControls": ComparisonFilterControls,

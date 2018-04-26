@@ -203,6 +203,7 @@ table.fields_list th, table.fields_list td {
 }
 
 .match_item {
+  display: block;
   color: #79f;
 }
 
