@@ -83,6 +83,11 @@ a:active {
   background: #fff;
 }
 
+.windowlike {
+  max-height: 600px;
+  overflow: show;
+}
+
 .control_panel {
   width: 90%;
   padding: 8pt;
@@ -207,6 +212,12 @@ table.fields_list th, table.fields_list td {
   color: #79f;
 }
 
+.match_item.selected {
+  font-weight: bold;
+  color: #fff8e0;
+  background-color: #79f;
+}
+
 .match_empty {
   color: #f97;
 }
@@ -223,7 +234,7 @@ table.fields_list th, table.fields_list td {
 
 .field_select {
   margin: 6pt 0pt;
-  width: 100%;
+  width: 16em;
 }
 
 .matchbox {

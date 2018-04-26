@@ -29,6 +29,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   // Threshold for using textbox selection for multiple values
   var LOTS_OF_VALUES_THRESHOLD = 5;
 
+  // Milliseconds to wait after focusout event before closing a menu
+  var MENU_TIMEOUT_HACK = 180;
+
   //////////////////
   // ToggleWidget //
   //////////////////
@@ -161,6 +164,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.input = undefined;
     this.matches = undefined;
     this.selected = this.default_option;
+    this.highlighted_index = 0;
+    this.displayed_options = [];
   }
 
   TextSelectWidget.prototype.cleanup = function () {
@@ -169,6 +174,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     } else {
       this.input.property("value", "");
     }
+    this.input.node().blur();
+    this.highlighted_index = 0;
+    this.displayed_options = undefined;
 
     if (this.matches) {
       this.matches.remove();
@@ -217,14 +225,25 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       .attr("class", "field_select")
       .property("value", this.selected)
       .on("focusout", function () {
-        // TODO: A better solution to this!?!
-        window.setTimeout(function () { the_widget.cleanup(); }, 300);
+        var evt = d3.event;
+        if (evt.relatedTarget != null) {
+          the_widget.cleanup();
+        } else {
+          // TODO: A better solution to this!?!
+          window.setTimeout(
+            function () { the_widget.cleanup(); },
+            MENU_TIMEOUT_HACK
+          );
+        }
       })
       .on("focusin keyup", function () {
         var evt = d3.event;
         if (evt.type == "focusin") {
           the_widget.input.property("value", "");
+          the_widget.highlighted_index = 0;
         }
+
+        // compute and store displayed options:
         var sofar = utils.get_text_value(the_widget.input.node());
         var fragments = sofar.split(" ");
         var possibilities = Array.from({length: opts.length}, (x,i) => i);
@@ -242,34 +261,68 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
             possibilities = next;
           }
         }
-        if (evt.key && evt.key === "Enter" && possibilities.length > 0) {
-          the_widget.designate(opts[possibilities[0]]);
-          the_widget.cleanup();
-        } else { // otherwise re-filter options
-          if (the_widget.matches === undefined) {
-            the_widget.matches = the_widget.node.insert(
-              "div",
-              ".selected_values"
+        the_widget.displayed_options = possibilities;
+
+        if (evt.key && possibilities.length > 0) {
+          if (evt.key == "Enter") {
+            // select currently-highlighted element
+            the_widget.designate(
+              opts[the_widget.displayed_options[the_widget.highlighted_index]]
             );
-            the_widget.matches.attr("class", "matchbox");
-          } else {
-            the_widget.matches.selectAll("*").remove();
+            the_widget.cleanup();
+            return; // no further processing
+          } else if (evt.key == "ArrowDown") {
+            if (the_widget.displayed_options.length > 0) {
+              the_widget.highlighted_index += 1;
+              the_widget.highlighted_index %=
+                the_widget.displayed_options.length;
+            } else {
+              the_widget.highlighted_index = 0;
+            }
+          } else if (evt.key === "ArrowUp") {
+            if (the_widget.displayed_options.length > 0) {
+              the_widget.highlighted_index += (
+                the_widget.displayed_options.length - 1
+              );
+              the_widget.highlighted_index %=
+                the_widget.displayed_options.length;
+            } else {
+              the_widget.highlighted_index = 0;
+            }
           }
-          if (possibilities.length == 0) {
-            the_widget.matches.append("span")
-              .attr("class", "match_empty")
-              .text("<no matches>");
-          } else {
-            the_widget.matches.selectAll("a")
-              .data(possibilities.map(p => opts[p]))
-            .enter().append("a")
-              .attr("class", "match_item")
-              .text(d => d)
-              .on("click touchstart", function (d) {
-                the_widget.designate(d);
-                the_widget.cleanup();
-              });
-          }
+        }
+        // now re-filter options
+        if (the_widget.matches === undefined) {
+          the_widget.matches = the_widget.node.insert(
+            "div",
+            ".selected_values"
+          );
+          the_widget.matches.attr("class", "matchbox");
+        } else {
+          the_widget.matches.selectAll("*").remove();
+        }
+        if (the_widget.displayed_options.length == 0) {
+          the_widget.matches.append("span")
+            .attr("class", "match_empty")
+            .text("<no matches>");
+        } else {
+          the_widget.matches.selectAll("*").remove();
+          the_widget.matches.selectAll("a")
+            .data(the_widget.displayed_options.map(oi => opts[oi]))
+          .enter().append("a")
+            .attr(
+              "class",
+              (d, i) => (
+                i == the_widget.highlighted_index ?
+                  "match_item selected"
+                : "match_item"
+              )
+            )
+            .text(d => d)
+            .on("click touchstart", function (d) {
+              the_widget.designate(d);
+              the_widget.cleanup();
+            });
         }
       });
   }
