@@ -2297,7 +2297,12 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       }
     }
 
-    // polish standard deviations and fill in missing counts as zeros
+    // everything might be empty:
+    this.empty_rows = new Set(Array.from({length: this.n_rows}, (x,i) => i));
+    this.empty_cols = new Set(Array.from({length: this.n_cols}, (x,i) => i));
+
+    // polish standard deviations, fill in missing counts as zeros, and find
+    // empty rows/columns
     for (let c = 0; c < this.n_cols; ++c) {
       for (let r = 0; r < this.n_rows; ++r) {
         if (this.counts[c] == undefined) {
@@ -2310,11 +2315,15 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           this.counts[c][r] = 0;
           this.matrix[c][r] = NaN;
           this.stdevs[c][r] = NaN;
-        } else if (cv > 1) {
-          var sv = this.stdevs[c][r];
-          this.stdevs[c][r] = Math.sqrt(sv / (cv - 1));
         } else {
-          this.stdevs[c][r] = 0;
+          this.empty_cols.delete(c);
+          this.empty_rows.delete(r);
+          if (cv > 1) {
+            var sv = this.stdevs[c][r];
+            this.stdevs[c][r] = Math.sqrt(sv / (cv - 1));
+          } else {
+            this.stdevs[c][r] = 0;
+          }
         }
       }
     }
@@ -2327,14 +2336,34 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     // Reset the frame:
     this.frame.selectAll("*").remove();
 
+    var reduced_col_labels = this.col_labels.filter(
+      (x, i) => !this.empty_cols.has(i)
+    );
+    var reduced_row_labels = this.row_labels.filter(
+      (x, i) => !this.empty_rows.has(i)
+    );
+
+    var reduced_matrix = [];
+    for (var c = 0; c < this.n_cols; ++c) {
+      if (this.empty_cols.has(c)) { continue; }
+      var this_col = [];
+      reduced_matrix.push(this_col);
+      for (var r = 0; r < this.n_rows; ++r) {
+        if (this.empty_rows.has(r)) { continue; }
+        this_col.push(this.matrix[c][r]);
+      }
+    }
+
     viz.draw_matrix(
       this.frame,
-      this.matrix,
+      reduced_matrix,
+      /*
       this.counts,
       this.stdevs,
+      */
       this.full_domain,
-      this.col_labels,
-      this.row_labels,
+      reduced_col_labels,
+      reduced_row_labels,
       this.color_scale_widget.get_gradient(),
       this.missing_color_widget.color,
       this.label_color_widget.color,

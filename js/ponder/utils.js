@@ -9,6 +9,15 @@ define(["d3"], function (d3) {
   // Default number of stops for creating CSS gradient backgrounds
   var DEFAULT_GRADIENT_STOPS = 24;
 
+  // Our initial guess for font size
+  var FONT_SIZE_GUESS = 22;
+
+  // Max tries to guess appropriate font size
+  var MAX_FONT_SIZE_GUESSES = 100;
+
+  // Tolerance for font sizing (in fractions of target size)
+  var FONT_SIZE_TOLERANCE = 0.02;
+
   // Out-of-DOM SVG for testing font sizes
   var FONT_SIZE_ARENA;
 
@@ -394,14 +403,137 @@ define(["d3"], function (d3) {
   }
 
   function get_text_size(string, font_size) {
+    // Determines the bounding box of the given string in the given font size
     if (FONT_SIZE_ARENA == undefined) {
-      FONT_SIZE_ARENA = d3.create("svg");
+      FONT_SIZE_ARENA = d3.select("body")
+        .append("svg")
+        .attr("opacity", 0)
+        .attr("width", 0)
+        .attr("height", 0);
     }
-    var t = d3.select(FONT_SIZE_ARENA)
+    var t = FONT_SIZE_ARENA.append("text")
       .text(string)
       .attr("font-size", font_size);
 
-    return get_bbox(t);
+    var result = t.node().getBBox();
+    //var result = t.node().getBoundingClientRect();
+    /*
+    var result = {
+      "height": font_size,
+      "width": t.node().getComputedTextLength()
+    }
+    */
+
+    t.remove();
+
+    return result;
+  }
+
+  var SIZE_MODELS = [];
+  var TEXT_PROTO = "Mij1ƒAnligy0";
+
+  function get_approx_text_size(string, font_size) {
+    // Faster approximate text sizing. Tends to overestimate both width and
+    // height a bit (especially height if the input text has no descenders).
+    // It can however also underestimate, usually when the text contains many
+    // wide characters (or a really tall one, for height).
+    if (FONT_SIZE_ARENA == undefined) {
+      FONT_SIZE_ARENA = d3.select("body")
+        .append("svg")
+        .attr("opacity", 0)
+        .attr("width", 0)
+        .attr("height", 0);
+    }
+    if (SIZE_MODELS.length == 0) {
+      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 4));
+      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 8));
+      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 12));
+      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 18));
+      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 36));
+    }
+    var lr = string.length / TEXT_PROTO.length;
+    if (font_size < 4) {
+      var t = font_size/4;
+      return {
+        "width": lr * t * SIZE_MODELS[0].width,
+        "height": t * SIZE_MODELS[0].height
+      };
+    } else if (font_size < 8) {
+      var t = (font_size - 4)/4;
+      return {
+        "width": lr * (t * SIZE_MODELS[1].width + (1-t) * SIZE_MODELS[0].width),
+        "height": t * SIZE_MODELS[1].height + (1-t) * SIZE_MODELS[0].height
+      };
+    } else if (font_size < 12) {
+      var t = (font_size - 8)/4;
+      return {
+        "width": lr * (t * SIZE_MODELS[2].width + (1-t) * SIZE_MODELS[1].width),
+        "height": t * SIZE_MODELS[2].height + (1-t) * SIZE_MODELS[1].height
+      };
+    } else if (font_size < 18) {
+      var t = (font_size - 12)/6;
+      return {
+        "width": lr * (t * SIZE_MODELS[3].width + (1-t) * SIZE_MODELS[2].width),
+        "height": t * SIZE_MODELS[3].height + (1-t) * SIZE_MODELS[2].height
+      };
+    } else if (font_size < 36) {
+      var t = (font_size - 18)/18;
+      return {
+        "width": lr * (t * SIZE_MODELS[4].width + (1-t) * SIZE_MODELS[3].width),
+        "height": t * SIZE_MODELS[4].height + (1-t) * SIZE_MODELS[3].height
+      };
+    } else {
+      var t = font_size/36;
+      return {
+        "width": lr * t * SIZE_MODELS[4].width,
+        "height": t * SIZE_MODELS[4].height
+      };
+    }
+  }
+
+  function font_size_for(bbox, string, margin) {
+    // Determines the largest font size such that the given text can fit into
+    // the given bounding box with the given margin (in percent; default is 2%).
+    if (margin == undefined) {
+      margin = 0.02;
+    }
+    var mx_w = bbox.width * (1 - margin/100);
+    var mx_h = bbox.height * (1 - margin/100);
+
+    var guess = undefined;
+    var next_guess = FONT_SIZE_GUESS;
+    var guess_size = undefined;
+    var i = 0;
+    while (true) {
+      i += 1;
+      if (i > MAX_FONT_SIZE_GUESSES) {
+        break;
+      }
+      // check our next guess
+      guess = next_guess
+      guess_size = get_approx_text_size(string, guess);
+
+      // compute error in fractional terms
+      err_w = mx_w / guess_size.width;
+      err_h = mx_h / guess_size.height;
+      // bit of overcorrection to avoid too smooth an approach from above
+      if (err_w < 1 && err_w > 1 - FONT_SIZE_TOLERANCE) {
+        err_w -= FONT_SIZE_TOLERANCE/2;
+      }
+      if (err_h < 1 && err_h > 1 - FONT_SIZE_TOLERANCE) {
+        err_h -= FONT_SIZE_TOLERANCE/2;
+      }
+      // next guess
+      next_guess = Math.min(err_w * guess, err_h * guess);
+      // check if we've converged
+      if (err_w > 1 && err_h > 1) { // possibly acceptable
+        if (err_w - 1 < FONT_SIZE_TOLERANCE || err_h - 1 < FONT_SIZE_TOLERANCE){
+          // good enough
+          break;
+        }
+      }
+    }
+    return guess;
   }
 
   // https://stackoverflow.com/questions/3446170/escape-string-for-use-in-javascript-regex
@@ -440,6 +572,8 @@ define(["d3"], function (d3) {
     "normalize_vector": normalize_vector,
     "unquote": unquote,
     "get_text_size": get_text_size,
+    "get_approx_text_size": get_approx_text_size,
+    "font_size_for": font_size_for,
     "text_match_indices": text_match_indices,
   };
 });

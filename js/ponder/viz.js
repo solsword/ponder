@@ -22,8 +22,9 @@ function (d3, utils, qt, prp) {
 
   // Computes a table layout with room at the top and left for the given
   // labels. The default padding (surrounding the whole table) is 0.02, while
-  // the default margins are 0.15 each. Returns an object with the following
-  // fields:
+  // the default row and column margins are 0.03 each. The default label size
+  // is 0.15, which reserves 15% of the width (height) for row (column) labels.
+  // Returns an object with the following fields:
   //
   //   padding:
   //     Padding amount on all sides. By default 0.02 * min(width, height).
@@ -43,19 +44,32 @@ function (d3, utils, qt, prp) {
   //     Width and height of content cells.
   //   cl_font_size,
   //   rl_font_size:
-  //     Font size TODO!strings for the column and row labels.
+  //     Font sizes for the column and row labels.
   //   cell_font_size:
   //     Font size for the cells.
-  //     TODO: HERE!
-  function compute_layout(
+  function compute_matrix_layout(
+    element,
     row_labels,
     col_labels,
+    values,
     padding,
+    label_size,
     row_margin,
     col_margin
   ) {
     if (padding == undefined) {
       padding = 0.02;
+    }
+
+    if (label_size == undefined) {
+      label_size = 0.15;
+    }
+
+    if (row_margin == undefined) {
+      row_margin = 0.03;
+    }
+    if (col_margin == undefined) {
+      col_margin = 0.03;
     }
 
     var n_rows = row_labels.length;
@@ -64,61 +78,95 @@ function (d3, utils, qt, prp) {
     var eh = element.attr("height"); // element height
     var ew = element.attr("width"); // element width
 
+    //   padding:
+    //     Padding amount on all sides. By default 0.02 * min(width, height).
     var pad = padding * Math.min(eh, ew);
+    var result = { "padding": pad };
 
-    var cl_height;
+    //   cl_height:
+    //     Height reserved for column labels.
     if (n_cols > 0) {
-      cl_height = 0.15 * eh; // starting value
+      result.cl_height = label_size * eh;
     } else {
-      cl_height = 0;
+      result.cl_height = 0;
     }
-    var rl_width;
+    //   rl_width:
+    //     Width reserved for row labels.
     if (n_rows > 0) {
-      rl_width = 0.15 * ew; // starting value
+      result.rl_width = label_size * ew;
     } else {
-      rl_width = 0;
+      result.rl_width = 0;
     }
 
-    var ch; // cell height
-    if (n_rows > 0) {
-      ch = (eh - 2*pad - cl_height) / n_rows;
-    } else {
-      ch = eh - 2*pad - cl_height;
-    }
-    var rl_font_size = (ch * 0.96) + "px";
+    //   content_top:
+    //     Distance from outer border to top of content (padding + cl_height).
+    //   content_left:
+    //     Distance from border to left edge of content (padding + rl_width).
+    //   content_width,
+    //   content_height:
+    //     Width and height of content area.
+    result.content_top = result.cl_height + result.padding;
+    result.content_left = result.rl_width + result.padding;
+    result.content_height = eh - result.content_top - result.padding;
+    result.content_width = ew - result.content_left - result.padding;
 
-    var cw; // cell width
+    //   cell_width,
+    //   cell_height:
+    //     Width and height of content cells.
+    if (n_rows > 0) {
+      result.cell_height = result.content_height / n_rows;
+    } else {
+      result.cell_height = result.content_height;
+    }
+
     if (n_cols > 0) {
-      cw = (ew - 2*pad - rl_width) / n_cols;
+      result.cell_width = result.content_width / n_cols;
     } else {
-      cw = (ew - 2*pad - rl_width);
+      result.cell_width = result.content_width;
     }
-    var cl_font_size = (cw * 0.96) + "px";
-  }
 
-  function compute_labeled_layout(row_labels, col_labels, padding) {
-    while (true) { // iterate to convergence
-      // evaluate space requirements at current font size:
-      var required_width = undefined;
-      var required_height = undefined;
-      for (let i = 0; i < n_rows; ++i) {
-        var lt = row_labels[i];
-        var ts = utils.get_text_size(lt, rl_font_size);
-        if (required_width == undefined || required_width < ts.width) {
-          required_width = ts.width;
-        }
+    //   cl_font_size,
+    //   rl_font_size:
+    //     Font sizes for the column and row labels.
+    result.cl_font_size = undefined;
+    var col_label_box = { // column labels are drawn sideways
+      "width": result.cl_height,
+      "height": result.cell_width
+    };
+    for (let cl of col_labels) {
+      let fs = utils.font_size_for(col_label_box, cl);
+      if (result.cl_font_size == undefined || fs < result.cl_font_size) {
+        result.cl_font_size = fs;
       }
-      for (let i = 0; i < n_cols; ++i) {
-        var lt = col_labels[i];
-        var ts = utils.get_text_size(lt, cl_font_size);
-        if (required_height == undefined || required_height < ts.height) {
-          required_height = ts.height;
-        }
-      }
-
-      //if (required_width < 
-      // TODO: HERE
     }
+
+    result.rl_font_size = undefined;
+    var row_label_box = {
+      "width": result.rl_width,
+      "height": result.cell_height
+    };
+    for (let rl of row_labels) {
+      let fs = utils.font_size_for(row_label_box, rl);
+      if (result.rl_font_size == undefined || fs < result.rl_font_size) {
+        result.rl_font_size = fs;
+      }
+    }
+
+    //   cell_font_size:
+    //     Font size for the cells.
+    result.cell_font_size = undefined;
+    var cell_box = {
+      "width": result.cell_width * (1 - 2*col_margin),
+      "height": result.cell_height * (1 - 2*row_margin)
+    };
+    for (let v of values) {
+      let fs = utils.font_size_for(cell_box, "" + v);
+      if (result.cell_font_size == undefined || fs < result.cell_font_size) {
+        result.cell_font_size = fs;
+      }
+    }
+
+    return result;
   }
 
   /*
@@ -478,7 +526,9 @@ function (d3, utils, qt, prp) {
     var bih = bh - 2*bpad; // bar inner height
 
     var ew = element.attr("width");
-    var lx = ew * 0.25 // 25% for value labels
+    var lx = ew * 0.20 // 25% for value labels
+    var lw = lx - 0.02 * ew;
+    var blw = ew * 0.1; // 10% for bar labels
     var bx;
     var bw;
 
@@ -486,16 +536,36 @@ function (d3, utils, qt, prp) {
     // on the left:
     if (min > 0) {
       min = 0;
-      bx = ew * 0.25 // 25% for value labels
-      bw = ew * 0.65; // 75% width (save extra 10% for count labels)
+      bx = lx; // 25% for value labels
+      bw = ew - bx - blw; // 75% width (save extra 10% for count labels)
     } else {
-      bx = ew * 0.35 // 25% for value labels + 10% for left-hand counts
-      bw = ew * 0.55; // 65% width (extra 10% for right-hand counts)
+      bx = lx + blw; // 25% for value labels + 10% for left-hand counts
+      bw = ew - bx - blw; // 65% width (extra 10% for right-hand counts)
     }
 
+    // compute label sizes:
+    var value_label_box = { "width": lw, "height": bh };
+    var count_label_box = { "width": blw, "height": bh };
+    
+    function value_label(d) {
+      return "" + d[0] + NBSP;
+    }
+
+    var value_fs = undefined;
+    var count_fs = undefined;
+    for (var p of pairs) {
+      var fs = utils.font_size_for(value_label_box, value_label(p));
+      if (value_fs == undefined || fs < value_fs) {
+        value_fs = fs;
+      }
+      var fs = utils.font_size_for(count_label_box, bar_label(p[0]) + NBSP);
+      if (count_fs == undefined || fs < count_fs) {
+        count_fs = fs;
+      }
+    }
 
     // x-value for zero
-    var zero_x = bx + bw * (0 - min) / (max - min)
+    var zero_x = bx + bw * (0 - min) / (max - min);
 
     function bar_width(d) {
       if (
@@ -535,7 +605,8 @@ function (d3, utils, qt, prp) {
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "end")
-      .text(function(d) { return "" + d[0] + NBSP; });
+      .attr("font-size", value_fs + "px")
+      .text(d => value_label(d));
     bargroup.append("text") // count label at end of bar
       .attr("class", "label")
       .attr(
@@ -545,6 +616,7 @@ function (d3, utils, qt, prp) {
       .attr("y", bpad + bih/2)
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", d => d[1] >= 0 ? "start" : "end")
+      .attr("font-size", count_fs + "px")
       .text(d => d[1] >= 0 ? NBSP + bar_label(d[0]) : bar_label(d[0]) + NBSP);
   }
 
@@ -554,8 +626,10 @@ function (d3, utils, qt, prp) {
   function draw_matrix(
     element,
     matrix,
+    /*
     counts,
     stdevs,
+    */
     val_domain,
     col_labels,
     row_labels,
@@ -603,41 +677,29 @@ function (d3, utils, qt, prp) {
       }
     }
 
-    var eh = element.attr("height"); // element height
-    var vpad = 0.02 * eh; // 2% padding on top and bottom
-    var vlbls = 0.15 * eh; // 15% for labels
-
-    var ch; // cell height
-    if (n_rows > 0) {
-      ch = (eh - 2*vpad - vlbls) / n_rows;
-    } else {
-      ch = eh - 2*vpad - vlbls;
+    function display_value(d) {
+      return prp.format_number(d[1], "∙");
     }
-    var cvpad = 0.03 * ch; // 3% padding for each cell
-    var cih = ch - 2*cvpad; // bar inner height
 
-    var ew = element.attr("width"); // element width
-    var hpad = 0.02 * eh; // 2% padding on sides
-    var hlbls = 0.15 * eh; // 15% for labels
+    var layout = compute_matrix_layout(
+      element,
+      row_labels,
+      col_labels,
+      items.map(it => display_value(it))
+    );
 
-    var cw; // cell width
-    if (n_cols > 0) {
-      cw = (ew - 2*hpad - hlbls) / n_cols;
-    } else {
-      cw = (ew - 2*hpad - hlbls);
-    }
-    var chpad = 0.03 * cw; // 3% padding for each cell
-    var ciw = cw - 2*chpad; // bar inner height
+    var ch = layout.cell_height;
+    var cw = layout.cell_width;
 
     element.selectAll("text.row") // row label at left
       .data(row_labels)
     .enter().append("text")
       .attr("class", "row label")
-      .attr("x", hpad + hlbls)
-      .attr("y", (d, i) => vpad + vlbls + i * ch + ch/2)
+      .attr("x", layout.content_left)
+      .attr("y", (d, i) => layout.content_top + i * ch + ch/2)
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "end")
-      .attr("font-size", Math.min(18, cih) + "px")
+      .attr("font-size", layout.rl_font_size + "px")
       .text(d => d + NBSP);
 
     element.selectAll("text.column")
@@ -647,13 +709,13 @@ function (d3, utils, qt, prp) {
       .attr("x", 0)
       .attr("y", 0)
       .attr("transform", function (d, i) {
-        var x = hpad + hlbls + i * cw + cw/2;
-        var y = vpad + vlbls;
+        var x = layout.content_left + i * cw + cw/2;
+        var y = layout.content_top;
         return "translate(" + x + "," + y + "), rotate(90)";
       })
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "end")
-      .attr("font-size", Math.min(18, ciw) + "px")
+      .attr("font-size", layout.cl_font_size + "px")
       .text(d => d + NBSP);
 
     var cellgroup = element.selectAll("g")
@@ -665,8 +727,8 @@ function (d3, utils, qt, prp) {
         function(d) {
           var c = d[0][0];
           var r = d[0][1];
-          var x = hpad + hlbls + c * cw;
-          var y = vpad + vlbls + r * ch;
+          var x = layout.content_left + c * cw;
+          var y = layout.content_top + r * ch;
           return "translate(" + x + "," + y + ")"
         }
       );
@@ -689,10 +751,10 @@ function (d3, utils, qt, prp) {
         .attr("class", "label")
         .attr("x", cw/2)
         .attr("y", ch/2)
-        .attr("font-size", Math.min(18, cih) + "px")
+        .attr("font-size", layout.cell_font_size + "px")
         .attr("dominant-baseline", "middle")
         .attr("text-anchor", "middle")
-        .text(function(d) { return prp.format_number(d[1], "∙"); });
+        .text(display_value);
     }
   }
 

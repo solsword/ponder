@@ -5,7 +5,6 @@ define(
   "./dataset",
   "./views",
   "./transforms",
-  "./filters",
   "./quadtree",
   "./viz",
   "./properties"
