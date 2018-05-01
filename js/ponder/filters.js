@@ -88,15 +88,22 @@ function (d3, utils, ds) {
   function ValueSetFilter(dataset, index) {
     this.data = dataset;
     this.set_index(index);
+  }
+
+  // static applicability check
+  ValueSetFilter.applicable_to = function (dataset, index) {
+    return true;
+  }
+
+  ValueSetFilter.prototype.accept_all = function () {
     this.acceptable = new Set();
     for (let i = 0; i < this.ct.n_categories; ++i) {
       this.acceptable.add(i);
     }
   }
 
-  // static applicability check
-  ValueSetFilter.applicable_to = function (dataset, index) {
-    return true;
+  ValueSetFilter.prototype.accept_none = function () {
+    this.acceptable = new Set();
   }
 
   ValueSetFilter.prototype.set_index = function (index) {
@@ -105,6 +112,7 @@ function (d3, utils, ds) {
     }
     this.index = index;
     this.ct = ds.categorical_transform(this.data, this.index);
+    this.accept_all();
   }
 
   ValueSetFilter.prototype.set_accept = function (idx_or_label, accept) {

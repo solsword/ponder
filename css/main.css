@@ -46,7 +46,7 @@ a:active {
   border-collapse: collapse;
 }
 
-#layout td {
+#layout>tbody>tr>td {
   vertical-align: top;
   padding: 0.5%;
 }
@@ -55,19 +55,19 @@ a:active {
   width: 100%;
 }
 
-#windows td {
+#windows>td {
   height: 600px;
 }
 
-#windows td:first-child {
+#windows>td:first-child {
   width: 38%;
 }
 
-#windows td:nth-child(2) {
+#windows>td:nth-child(2) {
   width: 18%;
 }
 
-#windows td:last-child {
+#windows>td:last-child {
   width: 38%;
 }
 
@@ -209,7 +209,6 @@ table.fields_list th, table.fields_list td {
 
 .match_item {
   display: block;
-  color: #79f;
 }
 
 .match_item.selected {
@@ -227,9 +226,21 @@ table.fields_list th, table.fields_list td {
   height: 1.2ex;
   line-height: 1ex;
   color: #fff;
+  background: #f07;
+  border: 1pt solid #f07;
+  border-radius: 3pt;
+  margin: 0pt 2pt;
+}
+
+.plus_button {
+  display: inline-block;
+  height: 1.2ex;
+  line-height: 1ex;
+  color: #fff;
   background: #79f;
   border: 1pt solid #79f;
   border-radius: 3pt;
+  margin: 0pt 2pt;
 }
 
 .field_select {
@@ -245,4 +256,35 @@ table.fields_list th, table.fields_list td {
   background: #fff;
   padding: 4pt;
   margin-top: -6pt;
+}
+
+.subfilters {
+  border-collapse: separate;
+  border-spacing: 0pt 8pt;
+}
+
+.subfilter_row>td {
+  border: 1.5pt solid #ddd;
+  padding: 4pt;
+}
+
+.subfilter_row>td:first-child {
+  border-right: none;
+  border-radius: 3pt 0pt 0pt 3pt;
+}
+
+.subfilter_row>td:last-child {
+  border-radius: 0pt 3pt 3pt 0pt;
+}
+
+.subfilter_action {
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.subfilter {
+  display: table-cell;
+  text-align: left;
+  vertical-align: middle;
 }

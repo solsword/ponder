@@ -18,7 +18,7 @@ function (d3, utils, ds) {
   Circularize.applicable_to = function (dataset, index) {
     if (typeof index == "string") { index = ds.lookup_index(dataset, index); }
     var typ = ds.get_type(dataset, index);
-    return typ.kind == "number" || typ.kind == "string";
+    return typ.kind == "tensor" || typ.kind == "map";
   }
 
   // Returns the linearized index for the ith pole, which dictates that pole's

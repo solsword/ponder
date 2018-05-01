@@ -213,7 +213,10 @@ function (utils, prp) {
   // If n is larger than the number of such fields, it will wrap around, but if
   // there are no such fields, it will return undefined. An array of multiple
   // kinds can be passed, in which case any of them match, and the nth field
-  // across all given kinds is returned.
+  // across all given kinds is returned; kind can also be left undefined, in
+  // which case all fields will match. Finally, kind may be a function, in
+  // which case it will be called with each index should return true or false
+  // to count that index or not.
   function nth_of_kind(dataset, kind, n) {
     while (n >= 0) {
       var st_n = n;
@@ -221,7 +224,12 @@ function (utils, prp) {
         var ind = dataset.indices[i];
         var typ = get_type(dataset, ind);
         if (
-          (
+          kind == undefined
+       || (
+            typeof(kind) == "function"
+         && kind(ind)
+          )
+       || (
             Array.isArray(kind)
          && kind.indexOf(typ.kind) >= 0
           )

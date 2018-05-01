@@ -26,6 +26,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   // The current views for the left and right windows
   var LEFT_VIEW = undefined;
   var RIGHT_VIEW = undefined;
+  var SAVED_VIEWS = {};
 
   // The right-pane mode select widget
   var RIGHT_SELECT = undefined;
@@ -170,20 +171,22 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   function set_right_mode(data, mode) {
     if (RIGHT_VIEW != undefined) {
       RIGHT_VIEW.frame.selectAll("*").remove();
-      RIGHT_VIEW.controls.forEach(c => c.node.remove());
+      RIGHT_VIEW.remove_controls();
     }
-    if (mode == "histogram") {
+    if (SAVED_VIEWS.hasOwnProperty(mode)) {
+      RIGHT_VIEW = SAVED_VIEWS[mode];
+    } else if (mode == "histogram") {
       RIGHT_VIEW = new vw.Histogram(
         "right",
         data,
-        LEFT_VIEW.selected,
+        [], // selection gets updated below
         ds.nth_of_kind(data, "map", 0) || ds.nth_of_kind(data, "number", 0),
       );
     } else if (mode == "matrix") {
       RIGHT_VIEW = new vw.Matrix(
         "right",
         data,
-        LEFT_VIEW.selected,
+        [], // selection gets updated below
         ds.nth_of_kind(data, "string", 0) || ds.nth_of_kind(data, "tensor", 0),
         ds.nth_of_kind(data, "string", 1) || ds.nth_of_kind(data, "tensor", 1),
         undefined,
@@ -191,10 +194,12 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     } else {
       console.warn("Invalid mode argument to set_right_mode: '" + mode + "'");
     }
+    SAVED_VIEWS[mode] = RIGHT_VIEW;
+
     RIGHT_VIEW.bind_frame(RIGHT_FRAME);
     RIGHT_VIEW.put_controls(RIGHT_CONTROLS);
     RIGHT_WINDOW.select("#right_placeholder").style("display", "none");
-    RIGHT_VIEW.draw();
+    update_selection(data) // triggers redraw
   }
 
   function update_selection(dataset) {
@@ -272,6 +277,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         for (let i = 0; i < inames.length; ++i) {
           var inm = inames[i];
           if (tf.Circularize.applicable_to(data, inm)) {
+            console.log(inm);
             result.push(inm);
           }
         }
@@ -313,24 +319,18 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       }
     );
 
-    LENS_TOGGLE.put_controls(d3.select("#filters"));
+    let flt = d3.select("#filters");
+    LENS_TOGGLE.put_controls(flt);
+    flt.append("div").attr("class", "label").text("Filter by:");
 
     // filters
     if (FILTER != undefined) {
       FILTER.node.remove();
     }
-    /*
-    FILTER = new vw.ComparisonFilterControls(
+    FILTER = new vw.MultiFilterControls(
       data,
-      ds.nth_of_kind(data, ["number", "string"], 0),
       function () { update_selection(data); }
     );
-    */
-    FILTER = new vw.ValueSetFilterControls(
-      data,
-      ds.nth_of_kind(data, ["number", "string", "tensor", "map"], 0),
-      function () { update_selection(data); }
-    )
 
     FILTER.put_controls(d3.select("#filters"));
 
