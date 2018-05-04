@@ -526,7 +526,7 @@ function (d3, utils, qt, prp) {
     var bih = bh - 2*bpad; // bar inner height
 
     var ew = element.attr("width");
-    var lx = ew * 0.20 // 25% for value labels
+    var lx = ew * 0.20 // 20% for value labels
     var lw = lx - 0.02 * ew;
     var blw = ew * 0.1; // 10% for bar labels
     var bx;
@@ -536,11 +536,15 @@ function (d3, utils, qt, prp) {
     // on the left:
     if (min > 0) {
       min = 0;
-      bx = lx; // 25% for value labels
-      bw = ew - bx - blw; // 75% width (save extra 10% for count labels)
+      // bars stat where value labels are
+      bx = lx;
+      // subtract bar start, bar label width, and right margin
+      bw = ew - bx - blw - 0.02 * ew;
     } else {
-      bx = lx + blw; // 25% for value labels + 10% for left-hand counts
-      bw = ew - bx - blw; // 65% width (extra 10% for right-hand counts)
+      // bars stat where value labels are, plus room for count labels
+      bx = lx + blw;
+      // subtract bar start, bar label width, and right margin
+      bw = ew - bx - blw - 0.02 * ew;
     }
 
     // compute label sizes:

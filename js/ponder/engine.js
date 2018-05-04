@@ -277,7 +277,6 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         for (let i = 0; i < inames.length; ++i) {
           var inm = inames[i];
           if (tf.Circularize.applicable_to(data, inm)) {
-            console.log(inm);
             result.push(inm);
           }
         }

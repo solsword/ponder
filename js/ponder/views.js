@@ -2090,7 +2090,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       var tdim = ft.dimensions.reduce((a, b) => a * b);
       for (let j = 0; j < tdim; ++j) {
         seq_idx = prp.rollup_index(ft.dimensions, j);
-        this.bin_names.push(ds.get_name(this.data, this.field.concat(seq_idx)));
+        this.bin_names.push(ds.get_inner_name(this.data, this.field, seq_idx));
       }
       for (let i = 0; i < this.records.length; ++i) {
         for (let j = 0; j < tdim; ++j) {
@@ -2136,7 +2136,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
         var val = ds.get_field(this.data, this.records[i], this.field);
         for (var k in val) {
           if (val.hasOwnProperty(k)) {
-            var name = ds.get_name(this.data, this.field.concat([ k ]));
+            var name = ds.get_inner_name(this.data, this.field, [ k ]);
             if (val[k] != undefined && val[k] != null && val[k] != 0) {
               if (this.flags.force_counts || !all_numeric) {
                 if (this.counts.hasOwnProperty(name)) {

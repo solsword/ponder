@@ -32,11 +32,23 @@ function (utils, prp) {
       var shrt = [];
       for (let i = index.length - 1; i >= 0; --i) {
         shrt.push(index[i]);
-        if (Number.isNaN(index[i])) {
+        if (Number.isNaN(+index[i])) {
           break;
         }
       }
       return prp.index__string(shrt.reverse());
+    }
+  }
+
+  // Gets the name of a subfield inner of superfield outer, using an alias if
+  // available, but otherwise discarding the name of the superfield.
+  function get_inner_name(dataset, outer, inner) {
+    var combined = outer.concat(inner);
+    var cstr = prp.index__string(combined);
+    if (dataset.aliases.hasOwnProperty(cstr)) {
+      return dataset.aliases[cstr];
+    } else {
+      return prp.index__string(inner);
     }
   }
 
@@ -759,6 +771,8 @@ function (utils, prp) {
   return {
     "DEFAULT_OUTLIER_ALLOWANCE": DEFAULT_OUTLIER_ALLOWANCE,
     "get_name": get_name,
+    "get_short_name": get_short_name,
+    "get_inner_name": get_inner_name,
     "get_record": get_record,
     "get_field": get_field,
     "has_field": has_field,
