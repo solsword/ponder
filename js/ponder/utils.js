@@ -360,28 +360,6 @@ define(["d3"], function (d3) {
     return val;
   }
 
-  // Normalizes the given vector, returning a new array without modifying the
-  // original. This divides each value by the maximum, to ensure that each
-  // value is within the range [0, 1]. However, it does not ensure that the sum
-  // of the values adds up to 1.
-  function normalize_vector(v) {
-    var max = undefined;
-    for (let i = 0; i < v.length; ++i) {
-      var val = Math.abs(v[i]);
-      if (max === undefined || val > max) {
-        max = val;
-      }
-    }
-    if (max == 0) {
-      return v.slice();
-    }
-    result = [];
-    for (let i = 0; i < v.length; ++i) {
-      result[i] = v[i] / max;
-    }
-    return result;
-  }
-
   // Takes a string that starts and ends with quote characters and returns the
   // raw string, unescaping any escaped backslashes and/or quotes inside.
   function unquote(string) {
@@ -430,7 +408,10 @@ define(["d3"], function (d3) {
   }
 
   var SIZE_MODELS = [];
-  var TEXT_PROTO = "Mij1ƒAnligy0";
+  var TEXT_PROTO_SHORT = "Yj";
+  var TEXT_PROTO_MEDIUM = "Mij1ƒAnligy0";
+  var TEXT_PROTO_LONG = "Multilingual Internationalization";
+  var SIZES = [4, 8, 12, 18, 36];
 
   function get_approx_text_size(string, font_size) {
     // Faster approximate text sizing. Tends to overestimate both width and
@@ -445,49 +426,103 @@ define(["d3"], function (d3) {
         .attr("height", 0);
     }
     if (SIZE_MODELS.length == 0) {
-      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 4));
-      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 8));
-      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 12));
-      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 18));
-      SIZE_MODELS.push(get_text_size(TEXT_PROTO, 36));
+      var models_short = []
+      var models_medium = []
+      var models_long = []
+      for (let size of SIZES) {
+        models_short.push(get_text_size(TEXT_PROTO_SHORT, size));
+        models_medium.push(get_text_size(TEXT_PROTO_MEDIUM, size));
+        models_long.push(get_text_size(TEXT_PROTO_LONG, size));
+      }
+      SIZE_MODELS.push(models_short);
+      SIZE_MODELS.push(models_medium);
+      SIZE_MODELS.push(models_long);
     }
-    var lr = string.length / TEXT_PROTO.length;
+
+    // figure out string length anchors
+    var slr = string.length / TEXT_PROTO_SHORT.length;
+    var mlr = string.length / TEXT_PROTO_MEDIUM.length;
+    var llr = string.length / TEXT_PROTO_LONG.length;
+    if (slr <= 1) {
+      var lower = SIZE_MODELS[0];
+      var upper = undefined;
+      var interp = slr;
+    } else if (mlr <= 1) {
+      var lower = SIZE_MODELS[0];
+      var upper = SIZE_MODELS[1];
+      var interp = (
+        (string.length - TEXT_PROTO_SHORT.length)
+      / (TEXT_PROTO_MEDIUM.length - TEXT_PROTO_SHORT.length)
+      );
+    } else if (llr <= 1) {
+      var lower = SIZE_MODELS[1];
+      var upper = SIZE_MODELS[2];
+      var interp = (
+        (string.length - TEXT_PROTO_MEDIUM.length)
+      / (TEXT_PROTO_LONG.length - TEXT_PROTO_MEDIUM.length)
+      );
+    } else {
+      var lower = SIZE_MODELS[2];
+      var upper = undefined;
+      var interp = llr;
+    }
+
+    // figure out font-size anchors
     if (font_size < 4) {
       var t = font_size/4;
-      return {
-        "width": lr * t * SIZE_MODELS[0].width,
-        "height": t * SIZE_MODELS[0].height
-      };
+      var left = 0;
+      var right = undefined;
     } else if (font_size < 8) {
       var t = (font_size - 4)/4;
-      return {
-        "width": lr * (t * SIZE_MODELS[1].width + (1-t) * SIZE_MODELS[0].width),
-        "height": t * SIZE_MODELS[1].height + (1-t) * SIZE_MODELS[0].height
-      };
+      var left = 0;
+      var right = 1;
     } else if (font_size < 12) {
       var t = (font_size - 8)/4;
-      return {
-        "width": lr * (t * SIZE_MODELS[2].width + (1-t) * SIZE_MODELS[1].width),
-        "height": t * SIZE_MODELS[2].height + (1-t) * SIZE_MODELS[1].height
-      };
+      var left = 1;
+      var right = 2;
     } else if (font_size < 18) {
       var t = (font_size - 12)/6;
-      return {
-        "width": lr * (t * SIZE_MODELS[3].width + (1-t) * SIZE_MODELS[2].width),
-        "height": t * SIZE_MODELS[3].height + (1-t) * SIZE_MODELS[2].height
-      };
+      var left = 2;
+      var right = 3;
     } else if (font_size < 36) {
       var t = (font_size - 18)/18;
-      return {
-        "width": lr * (t * SIZE_MODELS[4].width + (1-t) * SIZE_MODELS[3].width),
-        "height": t * SIZE_MODELS[4].height + (1-t) * SIZE_MODELS[3].height
-      };
+      var left = 3;
+      var right = 4;
     } else {
       var t = font_size/36;
-      return {
-        "width": lr * t * SIZE_MODELS[4].width,
-        "height": t * SIZE_MODELS[4].height
-      };
+      var left = 4;
+      var right = undefined;
+    }
+
+    // figure out what to return via double interpolation:
+    if (upper == undefined) {
+      if (right == undefined) {
+        return {
+          "width": interp * t * lower[left].width,
+          "height": t * lower[left].height
+        };
+      } else {
+        return {
+          "width": interp*(t * lower[left].width + (1-t) * lower[right].width),
+          "height": (t * lower[left].height + (1-t) * lower[right].height)
+        };
+      }
+    } else {
+      if (right == undefined) {
+        var lit = t * lower[left].width;
+        var uit = t * upper[left].width;
+        return {
+          "width": interp * uit + (1-interp) * lit,
+          "height": t * lower[left].height
+        };
+      } else {
+        var lit = (t * lower[left].width + (1-t) * lower[right].width)
+        var uit = (t * upper[left].width + (1-t) * upper[right].width)
+        return {
+          "width": interp * uit + (1-interp) * lit,
+          "height": (t * lower[left].height + (1-t) * lower[right].height)
+        };
+      }
     }
   }
 
@@ -569,7 +604,6 @@ define(["d3"], function (d3) {
     "diff": diff,
     "css_gradient": css_gradient,
     "css_scheme": css_scheme,
-    "normalize_vector": normalize_vector,
     "unquote": unquote,
     "get_text_size": get_text_size,
     "get_approx_text_size": get_approx_text_size,

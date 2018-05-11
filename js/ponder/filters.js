@@ -2,14 +2,37 @@ define(
 ["d3", "./utils", "./dataset"],
 function (d3, utils, ds) {
 
+  function BaseFilter(dataset, index) {
+    this.data = dataset;
+    this.set_index(index);
+  }
+
+  BaseFilter.prototype.set_index = function (index) {
+    if (typeof index === "string") {
+      index = ds.lookup_index(this.data, index);
+    }
+    this.index = index;
+  }
+
+  BaseFilter.prototype.filter = function (records) {
+    return this.matching_pairs(records).map(x => x[1]);
+  }
+
+  BaseFilter.prototype.matching_indices = function (records) {
+    return new Set(this.matching_pairs(records).map(x => x[0]));
+  }
+
+
   // A filter that compares a field against a reference value using a
   // user-specified comparator.
   function ComparisonFilter(dataset, index, comparator, value) {
-    this.data = dataset;
-    this.set_index(index);
+    BaseFilter.call(this, dataset, index);
     this.set_comparator(comparator);
     this.set_value(value);
   }
+
+  ComparisonFilter.prototype = Object.create(BaseFilter.prototype);
+  ComparisonFilter.prototype.constructor = ComparisonFilter;
 
   // static applicability check
   ComparisonFilter.applicable_to = function (dataset, index) {
@@ -19,10 +42,9 @@ function (d3, utils, ds) {
   }
 
   ComparisonFilter.prototype.set_index = function (index) {
-    if (typeof index === "string") {
-      index = ds.lookup_index(this.data, index);
-    }
-    this.index = index;
+    Object.getPrototypeOf(
+      ComparisonFilter.prototype
+    ).set_index.call(this, index);
     this.nt = ds.numerical_transform(this.data, this.index, false);
   }
 
@@ -70,25 +92,37 @@ function (d3, utils, ds) {
     }
   }
 
+  ComparisonFilter.prototype.repr = function () {
+    return (
+      "#"
+    + ds.get_name(this.data, this.index)
+    + this.comparator
+    + this.value
+    );
+  }
+
   // Just calls the accept function (see set_comparator).
-  ComparisonFilter.prototype.filter = function (records) {
+  ComparisonFilter.prototype.matching_pairs = function(records) {
     var results = [];
     for (let i = 0; i < records.length; ++i) {
       var r = records[i];
       var val = this.nt.getter(r);
       if (this.accept(val)) {
-        results.push(r);
+        results.push([i, r]);
       }
     }
 
     return results;
   }
 
+
   // A filter that accepts values from a given set for a given field.
   function ValueSetFilter(dataset, index) {
-    this.data = dataset;
-    this.set_index(index);
+    BaseFilter.call(this, dataset, index);
   }
+
+  ValueSetFilter.prototype = Object.create(BaseFilter.prototype);
+  ValueSetFilter.prototype.constructor = ValueSetFilter;
 
   // static applicability check
   ValueSetFilter.applicable_to = function (dataset, index) {
@@ -107,10 +141,9 @@ function (d3, utils, ds) {
   }
 
   ValueSetFilter.prototype.set_index = function (index) {
-    if (typeof index === "string") {
-      index = ds.lookup_index(this.data, index);
-    }
-    this.index = index;
+    Object.getPrototypeOf(
+      ValueSetFilter.prototype
+    ).set_index.call(this, index);
     this.ct = ds.categorical_transform(this.data, this.index);
     this.accept_all();
   }
@@ -145,8 +178,18 @@ function (d3, utils, ds) {
     return this.acceptable.has(idx);
   }
 
+  ValueSetFilter.prototype.repr = function () {
+    return (
+      "□"
+    + ds.get_name(this.data, this.index)
+    + "∈{"
+    + this.ct.labels.filter((x, i) => this.acceptable.has(i)).join("|")
+    + "}"
+    );
+  }
+
   // Augments the dataset by adding the designated field to every record.
-  ValueSetFilter.prototype.filter = function (records) {
+  ValueSetFilter.prototype.matching_pairs = function (records) {
     var results = [];
     for (let i = 0; i < records.length; ++i) {
       var r = records[i];
@@ -159,7 +202,7 @@ function (d3, utils, ds) {
         }
       });
       if (matches) {
-        results.push(r);
+        results.push([i, r]);
       }
     }
 

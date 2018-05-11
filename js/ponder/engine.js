@@ -32,7 +32,17 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   var RIGHT_SELECT = undefined;
 
   // The transformation widget
-  var TRANSFORMER = undefined;
+  var TRANSFORM_SELECT = undefined;
+  var SAVED_TRANSFORMS = {};
+
+  // Available transforms:
+  var AVAILABLE_TRANSFORMS = {
+    "reify": tf.Reify,
+    "circularize": tf.Circularize,
+    "differentiate": tf.Differentiate,
+    // TODO: Add this back in once implemented!
+    // "PCA": tf.PCA,
+  }
 
   // The lens toggle
   var LENS_TOGGLE = undefined;
@@ -220,13 +230,35 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     var nsel = selected.length;
     var nfil = filtered.length;
 
-    d3.select("#selcount").selectAll("*").remove()
-    d3.select("#selcount").append("span")
+    var sc = d3.select("#selcount")
+    sc.selectAll(".sel_display").remove()
+    sc.append("span")
+      .attr("class", "sel_display")
       .text(nsel + " selected » " + nfil + " filtered")
 
     RIGHT_VIEW.set_records(filtered);
     RIGHT_VIEW.update();
     RIGHT_VIEW.draw();
+  }
+
+  function transform_named(data, name) {
+    var transform = undefined;
+    if (SAVED_TRANSFORMS.hasOwnProperty(name)) {
+      transform = SAVED_TRANSFORMS[name];
+    } else if (AVAILABLE_TRANSFORMS.hasOwnProperty(name)) {
+      transform = new AVAILABLE_TRANSFORMS[name](
+        data,
+        function () { // callback
+          TRANSFORM_SELECT.put_controls();
+          LEFT_VIEW.put_controls();
+          RIGHT_VIEW.put_controls();
+        }
+      );
+      SAVED_TRANSFORMS[name] = transform;
+    } else {
+      console.warn("Request for unknown transformation type '" + name + "'.");
+    }
+    return transform;
   }
 
   /*
@@ -264,47 +296,6 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
     RIGHT_SELECT.put_controls(d3.select("#top_panel"));
 
-    // extra transform option
-    if (TRANSFORMER != undefined) {
-      TRANSFORMER.node.remove();
-    }
-    TRANSFORMER = new vw.MultiselectWidget(
-      "Apply",
-      ["Compute transform: ", " of property "],
-      [["circularize"], function () {
-        var inames = ds.index_names(data);
-        var result = [];
-        for (let i = 0; i < inames.length; ++i) {
-          var inm = inames[i];
-          if (tf.Circularize.applicable_to(data, inm)) {
-            result.push(inm);
-          }
-        }
-        return result;
-      }],
-      undefined,
-      function (selected) {
-        if (selected[0] == "circularize") {
-          var dataset = LEFT_VIEW.data; // TODO: Better here!
-          var index = ds.lookup_index(dataset, selected[1]);
-          var circ = new tf.Circularize(
-            dataset,
-            index
-          );
-          circ.apply()
-          // Update controls
-          TRANSFORMER.put_controls();
-          LEFT_VIEW.put_controls();
-          RIGHT_VIEW.put_controls();
-        } else {
-          console.log(selected);
-          // TODO: HERE
-        }
-      }
-    );
-
-    TRANSFORMER.put_controls(d3.select("#top_panel"));
-
     // the lens toggle
     if (LENS_TOGGLE != undefined) {
       LENS_TOGGLE.node.remove();
@@ -317,10 +308,63 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         update_selection(data)
       }
     );
+    LENS_TOGGLE.put_controls(d3.select("#selcount"));
+
+    // transforms
+    let trf = d3.select("#transform");
+    trf.selectAll("*").remove();
+    trf.classed("collapsed", true);
+    let thead = trf.append("div").attr("class", "controls_row");
+    let tcollapse = thead.append("a");
+    tcollapse.attr("class", "collapse_button button")
+      .text("v")
+      .on("click touchend", function () {
+        if (tcollapse.node().innerText == "v") {
+          tcollapse.text("–");
+          trf.classed("collapsed", false);
+        } else {
+          tcollapse.text("v");
+          trf.classed("collapsed", true);
+        }
+      });
+    thead.append("span").attr("class", "label").text("Transform:");
+    let tbody = undefined;
+
+    if (TRANSFORM_SELECT != undefined) {
+      TRANSFORM_SELECT.remove();
+    }
+    let tfoptions = Array.from(Object.keys(AVAILABLE_TRANSFORMS));
+    TRANSFORM_SELECT = new vw.TextSelectWidget(
+      "Transformation: ",
+      tfoptions, // options
+      tfoptions[0], // default
+      function (selected) {
+        var transform = transform_named(data, selected);
+        tbody.selectAll("*").remove();
+        transform.put_controls(tbody);
+      }
+    );
+    TRANSFORM_SELECT.put_controls(trf)
+    tbody = trf.append("div");
+    var def_tf = transform_named(data, Object.keys(AVAILABLE_TRANSFORMS)[0]);
+    def_tf.put_controls(tbody);
 
     let flt = d3.select("#filters");
-    LENS_TOGGLE.put_controls(flt);
-    flt.append("div").attr("class", "label").text("Filter by:");
+    flt.attr("class", "control_panel collapsed");
+    let fhead = flt.append("div").attr("class", "controls_row");
+    let fcollapse = fhead.append("a");
+    fcollapse.attr("class", "collapse_button button")
+      .text("v")
+      .on("click touchend", function () {
+        if (fcollapse.node().innerText == "v") {
+          fcollapse.text("–");
+          flt.attr("class", "control_panel");
+        } else {
+          fcollapse.text("v");
+          flt.attr("class", "control_panel collapsed");
+        }
+      });
+    fhead.append("span").attr("class", "label").text("Filter:");
 
     // filters
     if (FILTER != undefined) {
@@ -331,7 +375,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       function () { update_selection(data); }
     );
 
-    FILTER.put_controls(d3.select("#filters"));
+    FILTER.put_controls(flt);
 
     // left view
     if (LEFT_VIEW != undefined) {

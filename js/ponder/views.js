@@ -73,6 +73,41 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   }
 
   //////////////////
+  // ButtonWidget //
+  //////////////////
+
+  // A button with the given label.
+  // The callback will be called whenever the button is activated.
+  function ButtonWidget(
+    label,
+    callback
+  ) {
+    BaseWidget.call(this);
+    this.label = label;
+    this.callback = callback;
+  }
+
+  ButtonWidget.prototype = Object.create(BaseWidget.prototype);
+  ButtonWidget.prototype.constructor = ButtonWidget;
+
+  ButtonWidget.prototype.put_controls = function (node) {
+    Object.getPrototypeOf(ButtonWidget.prototype).put_controls.call(this, node);
+    var the_widget = this;
+    var ltext;
+    if (typeof this.label === "function") {
+      ltext = this.label(this);
+    } else {
+      ltext = this.label;
+    }
+    var button = this.node.append("input")
+      .attr("type", "button")
+      .attr("value", ltext)
+      .on("click touchend", function () {
+        the_widget.trigger_callback();
+      });
+  }
+
+  //////////////////
   // ToggleWidget //
   //////////////////
 
@@ -112,7 +147,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     }
     this.node.append("span")
       .attr("class", "label")
-      .text(this.label);
+      .text(ltext);
   }
 
   //////////////////
@@ -927,6 +962,18 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     }
   }
 
+  ComparisonFilterControls.prototype.matching_indices = function (records) {
+    if (this.active) {
+      return this.filter.matching_indices(records);
+    } else {
+      return new Set(Array.from({length: records.length}, (x,i) => i));
+    }
+  }
+
+  ComparisonFilterControls.prototype.config_string = function () {
+    return this.filter.repr();
+  }
+
   /////////////////////////////
   // ValueSetFilter Controls //
   /////////////////////////////
@@ -1019,7 +1066,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           match_item
             .attr("class", "match_item")
             .append("a")
-              .attr("class", "x_button")
+              .attr("class", "x_button button")
               .text("×")
               .on("click touchend", function () {
                 the_controls.set_accept(i, false);
@@ -1117,15 +1164,28 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     }
   }
 
+  ValueSetFilterControls.prototype.matching_indices = function (records) {
+    if (this.active) {
+      return this.filter.matching_indices(records);
+    } else {
+      return new Set(Array.from({length: records.length}, (x,i) => i));
+    }
+  }
+
+  ValueSetFilterControls.prototype.config_string = function () {
+    return this.filter.repr();
+  }
+
+
+  //////////////////////////
+  // MultiFilter Controls //
+  //////////////////////////
+
   // Available filter types
   var FILTER_TYPES = {
     "compare…": ComparisonFilterControls,
     "select…": ValueSetFilterControls,
   }
-
-  //////////////////////////
-  // MultiFilter Controls //
-  //////////////////////////
 
   // Controls for multiple filters that can be added or removed. The callback
   // will be called (without arguments) after every parameter change.
@@ -1169,7 +1229,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       row.append("td")
         .attr("class", "subfilter_action")
         .append("a")
-          .attr("class", "x_button")
+          .attr("class", "x_button button")
           .text("×")
           .on("click touchend", function () { the_controls.remove_filter(i); });
       let sub = row.append("td").attr("class", "subfilter");
@@ -1180,7 +1240,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     let row = tab.append("tr").attr("class", "subfilter_row");
     let sfa = row.append("td").attr("class", "subfilter_action");
     let pl_link = sfa.append("a")
-        .attr("class", "plus_button")
+        .attr("class", "plus_button button")
         .text("+");
 
     let sub = row.append("td").attr("class", "subfilter");
@@ -1205,6 +1265,19 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       records = ctl.apply_filter(records);
     });
     return records;
+  }
+
+  MultiFilterControls.prototype.matching_indices = function (records) {
+    var result = new Set(Array.from({length: records.length}, (x,i) => i));
+    this.filters.forEach(function (ctl) {
+      var fset = ctl.matching_indices(records);
+      result = new Set([...result].filter(x => fset.has(x)));
+    });
+    return result;
+  }
+
+  MultiFilterControls.prototype.config_string = function () {
+    return this.filters.map(ctl => ctl.config_string()).join(";");
   }
 
   //////////////////
@@ -2526,7 +2599,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   ////////////////////
 
   return {
+    "BaseWidget": BaseWidget,
     "ToggleWidget": ToggleWidget,
+    "ButtonWidget": ButtonWidget,
     "SelectWidget": SelectWidget,
     "TextSelectWidget": TextSelectWidget,
     "ColorScaleWidget": ColorScaleWidget,

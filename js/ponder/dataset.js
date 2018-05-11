@@ -221,6 +221,20 @@ function (utils, prp) {
     return result;
   }
 
+  // Returns a type value for a pure-numeric tensor with n entries.
+  function numeric_vector_type(n) {
+    var result = {
+      "kind": "tensor",
+      "value_type": { "kind": "number" },
+      "dimensions": [ n ],
+      "subtypes": []
+    };
+    for (let i = 0; i < n; ++i) {
+      result.subtypes.push({ "kind": "number" });
+    }
+    return result;
+  }
+
   // Returns the nth field of the given kind (e.g., "numeric", "string", etc.).
   // If n is larger than the number of such fields, it will wrap around, but if
   // there are no such fields, it will return undefined. An array of multiple
@@ -784,6 +798,7 @@ function (utils, prp) {
     "lookup_index": lookup_index,
     "aliased_indices": aliased_indices,
     "index_names": index_names,
+    "numeric_vector_type": numeric_vector_type,
     "nth_of_kind": nth_of_kind,
     "process_csv_field": process_csv_field,
     "guess_sep": guess_sep,

@@ -97,6 +97,11 @@ a:active {
   margin-bottom: 8pt;
 }
 
+.collapsed {
+  max-height: 2.5ex;
+  overflow-y: hidden;
+}
+
 .panel {
   text-align: left;
   width: 90%;
@@ -221,26 +226,31 @@ table.fields_list th, table.fields_list td {
   color: #f97;
 }
 
-.x_button {
+.button {
   display: inline-block;
   height: 1.2ex;
-  line-height: 1ex;
   color: #fff;
-  background: #f07;
-  border: 1pt solid #f07;
+  line-height: 1ex;
+  border-width: 1pt;
+  border-style: solid;
   border-radius: 3pt;
+  padding: 2pt;
   margin: 0pt 2pt;
 }
 
+.x_button {
+  background: #f07;
+  border-color: #f07;
+}
+
 .plus_button {
-  display: inline-block;
-  height: 1.2ex;
-  line-height: 1ex;
-  color: #fff;
   background: #79f;
-  border: 1pt solid #79f;
-  border-radius: 3pt;
-  margin: 0pt 2pt;
+  border-color: #79f;
+}
+
+.collapse_button {
+  background: #000;
+  border-color: #000;
 }
 
 .field_select {
