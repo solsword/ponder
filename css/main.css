@@ -238,19 +238,24 @@ table.fields_list th, table.fields_list td {
   margin: 0pt 2pt;
 }
 
-.x_button {
+.red_button {
   background: #f07;
   border-color: #f07;
 }
 
-.plus_button {
+.blue_button {
   background: #79f;
   border-color: #79f;
 }
 
-.collapse_button {
+.black_button {
   background: #000;
   border-color: #000;
+}
+
+.gray_button {
+  background: #ddd;
+  border-color: #ddd;
 }
 
 .field_select {
@@ -297,4 +302,14 @@ table.fields_list th, table.fields_list td {
   display: table-cell;
   text-align: left;
   vertical-align: middle;
+}
+
+.help {
+  position: absolute;
+  border: 1.5pt solid #222;
+  border-radius: 3pt;
+  background: #fff;
+  padding: 2pt 6pt;
+  max-width: 18em;
+  text-align: left;
 }

@@ -9,7 +9,7 @@ function (d3, utils, ds, vw, v) {
     this.set_index(default_index);
     var the_tf = this;
     this.selector = new vw.TextSelectWidget(
-      "Target: ",
+      "Field: ",
       function () {
         return the_tf.applicable.map(
           idx => ds.get_name(the_tf.data, idx)
@@ -85,10 +85,10 @@ function (d3, utils, ds, vw, v) {
   }
 
   // Put controls in place
-  BaseTransform.prototype.put_controls = function (node) {
+  BaseTransform.prototype.put_controls = function (node, insert_before) {
     Object.getPrototypeOf(
       BaseTransform.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     this.selector.put_controls(this.node);
     this.apply_button.put_controls(this.node);
     this.apply_button.node.classed("transform_apply_button", true);
@@ -119,6 +119,7 @@ function (d3, utils, ds, vw, v) {
       { "kind": "number" }
     );
     var the_tf = this;
+    this.label = undefined;
     this.filter = undefined;
     this.filter = new vw.MultiFilterControls(
       this.data,
@@ -140,16 +141,25 @@ function (d3, utils, ds, vw, v) {
   }
 
   // Put controls in place
-  Reify.prototype.put_controls = function (node) {
-    Object.getPrototypeOf(Reify.prototype).put_controls.call(this, node);
+  Reify.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      Reify.prototype
+    ).put_controls.call(this, node, insert_before);
     this.selector.remove(); // get rid of index selector
-    this.filter.put_controls(node); // add filter controls
+    // add label
+    this.label = this.node.insert("span", ".transform_apply_button")
+      .attr("class", "label")
+      .text("Filter settings:");
+    // add filter controls
+    this.filter.put_controls(this.node, ".transform_apply_button");
   }
 
   Reify.prototype.remove = function () {
-    Object.getPrototypeOf(Reify.prototype).remove.call(this);
     this.filter.remove();
-    this.node.selectAll("*").remove();
+    if (this.label) {
+      this.label.remove();
+    }
+    Object.getPrototypeOf(Reify.prototype).remove.call(this);
   }
 
   Reify.prototype.update_filter = function () {
@@ -265,6 +275,8 @@ function (d3, utils, ds, vw, v) {
       ds.numeric_vector_type(2)
     );
     var the_tf = this;
+    this.first_label = undefined;
+    this.second_label = undefined;
     this.first_index_filters = undefined;
     this.second_index_filters = undefined;
     this.first_index_filters = new vw.MultiFilterControls(
@@ -299,15 +311,26 @@ function (d3, utils, ds, vw, v) {
   // Put controls in place
   Differentiate.prototype.put_controls = function (node) {
     Object.getPrototypeOf(Differentiate.prototype).put_controls.call(this,node);
-    this.first_index_filters.put_controls(node);
-    this.second_index_filters.put_controls(node);
+    // add first label
+    this.first_label = this.node.insert("span", ".transform_apply_button")
+      .attr("class", "label")
+      .text("Origin filter:");
+    this.first_index_filters.put_controls(this.node, ".transform_apply_button");
+    this.second_label = this.node.insert("span", ".transform_apply_button")
+      .attr("class", "label")
+      .text("Endpoint filter:");
+    this.second_index_filters.put_controls(
+      this.node,
+      ".transform_apply_button"
+    );
   }
 
   Differentiate.prototype.remove = function () {
+    if (this.first_label) { this.first_label.remove(); }
+    if (this.first_index_filters) { this.first_index_filters.remove(); }
+    if (this.second_label) { this.second_label.remove(); }
+    if (this.second_index_filters) { this.second_index_filters.remove(); }
     Object.getPrototypeOf(Differentiate.prototype).remove.call(this);
-    this.first_index_filters.remove();
-    this.second_index_filters.remove();
-    this.node.selectAll("*").remove();
   }
 
   Differentiate.prototype.update_first = function () {

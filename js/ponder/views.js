@@ -41,12 +41,26 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.node == undefined;
   }
 
-  BaseWidget.prototype.put_controls = function (node) {
+  BaseWidget.prototype.put_controls = function (node, insert_before) {
     if (this.node == undefined) {
       if (node.classed("controls_row") || node.classed("controls_span")) {
-        this.node = node.append("span").attr("class", "controls_span");
+        if (insert_before) {
+          this.node = node.insert(
+            "span",
+            insert_before
+          ).attr("class", "controls_span");
+        } else {
+          this.node = node.append("span").attr("class", "controls_span");
+        }
       } else {
-        this.node = node.append("div").attr("class", "controls_row");
+        if (insert_before) {
+          this.node = node.insert(
+            "div",
+            insert_before
+          ).attr("class", "controls_row");
+        } else {
+          this.node = node.append("div").attr("class", "controls_row");
+        }
       }
     } else {
       this.node.selectAll("*").remove();
@@ -72,6 +86,65 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     }
   }
 
+  ////////////////
+  // HelpWidget //
+  ////////////////
+
+  // A question-mark symbol that when hovered will display a message and when
+  // clicked will display a pop-up with that message.
+  function HelpWidget(text) {
+    BaseWidget.call(this);
+    this.text = text;
+    this.callback = undefined;
+  }
+
+  HelpWidget.prototype = Object.create(BaseWidget.prototype);
+  HelpWidget.prototype.constructor = HelpWidget;
+
+  HelpWidget.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      HelpWidget.prototype
+    ).put_controls.call(this, node, insert_before);
+    var the_widget = this;
+    var text;
+    if (typeof this.text === "function") {
+      text = this.text();
+    } else {
+      text = this.text;
+    }
+    var button = this.node.append("a")
+      .attr("class", "gray_button button")
+      .text("?")
+      .on("mouseover", function () {
+        var bbox = utils.get_bbox(the_widget.node);
+        console.log(bbox);
+        if (the_widget.popup) {
+          the_widget.popup.remove();
+          the_widget.popup = undefined;
+        }
+        the_widget.popup = d3.select("body").append("div")
+          .attr("class", "help")
+          .style("top", bbox.y + "px")
+          .style("left", bbox.x + "px")
+          .style("position", "absolute")
+          .text(text)
+          .on("mouseout", function () {
+            if (the_widget.popup) {
+              the_widget.popup.remove();
+              the_widget.popup = undefined;
+            }
+          });
+      })
+      .on("click touchend", function () {
+        if (the_widget.popup) {
+          the_widget.popup.remove();
+          the_widget.popup = undefined;
+        }
+        // TODO: HERE
+        // the_widget.trigger_callback();
+      });
+  }
+
   //////////////////
   // ButtonWidget //
   //////////////////
@@ -90,8 +163,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   ButtonWidget.prototype = Object.create(BaseWidget.prototype);
   ButtonWidget.prototype.constructor = ButtonWidget;
 
-  ButtonWidget.prototype.put_controls = function (node) {
-    Object.getPrototypeOf(ButtonWidget.prototype).put_controls.call(this, node);
+  ButtonWidget.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      ButtonWidget.prototype
+    ).put_controls.call(this, node, insert_before);
     var the_widget = this;
     var ltext;
     if (typeof this.label === "function") {
@@ -128,8 +203,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   ToggleWidget.prototype = Object.create(BaseWidget.prototype);
   ToggleWidget.prototype.constructor = ToggleWidget;
 
-  ToggleWidget.prototype.put_controls = function (node) {
-    Object.getPrototypeOf(ToggleWidget.prototype).put_controls.call(this, node);
+  ToggleWidget.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      ToggleWidget.prototype
+    ).put_controls.call(this, node, insert_before);
     var the_widget = this;
     var select = this.node.append("input")
       .attr("type", "checkbox")
@@ -173,8 +250,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   SelectWidget.prototype = Object.create(BaseWidget.prototype);
   SelectWidget.prototype.constructor = SelectWidget;
 
-  SelectWidget.prototype.put_controls = function (node) {
-    Object.getPrototypeOf(SelectWidget.prototype).put_controls.call(this, node);
+  SelectWidget.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      SelectWidget.prototype
+    ).put_controls.call(this, node, insert_before);
     var ltext;
     if (typeof this.label === "function") {
       ltext = this.label(this);
@@ -297,10 +376,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.trigger_callback(value);
   }
 
-  TextSelectWidget.prototype.put_controls = function (node) {
+  TextSelectWidget.prototype.put_controls = function (node, insert_before) {
     Object.getPrototypeOf(
       TextSelectWidget.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     var the_widget = this;
     var ltext;
     if (typeof this.label === "function") {
@@ -465,8 +544,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   }
 
   // Adds the widget to a node.
-  ColorWidget.prototype.put_controls = function (node) {
-    Object.getPrototypeOf(ColorWidget.prototype).put_controls.call(this, node);
+  ColorWidget.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      ColorWidget.prototype
+    ).put_controls.call(this, node, insert_before);
     this.node.text(this.label);
     // custom flat color picker
     var the_widget = this;
@@ -626,10 +707,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     }
   }
 
-  ColorScaleWidget.prototype.put_controls = function (node) {
+  ColorScaleWidget.prototype.put_controls = function (node, insert_before) {
     Object.getPrototypeOf(
       ColorScaleWidget.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     this.node.text("Color scale: ");
     // custom option
     var cs_select = this.node.append("select");
@@ -777,10 +858,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   MultiselectWidget.prototype = Object.create(BaseWidget.prototype);
   MultiselectWidget.prototype.constructor = MultiselectWidget;
 
-  MultiselectWidget.prototype.put_controls = function (node) {
+  MultiselectWidget.prototype.put_controls = function (node, insert_before) {
     Object.getPrototypeOf(
       MultiselectWidget.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     if (this.node == undefined) {
       this.node = node.append("div").attr("class", "controls_row");
     } else {
@@ -904,10 +985,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     ).remove.call(this);
   }
 
-  ComparisonFilterControls.prototype.put_controls = function (node) {
+  ComparisonFilterControls.prototype.put_controls = function (
+    node,
+    insert_before
+  ) {
     Object.getPrototypeOf(
       ComparisonFilterControls.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     var the_controls = this;
 
     // toggle checkbox:
@@ -1066,7 +1150,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           match_item
             .attr("class", "match_item")
             .append("a")
-              .attr("class", "x_button button")
+              .attr("class", "re_button button")
               .text("×")
               .on("click touchend", function () {
                 the_controls.set_accept(i, false);
@@ -1109,10 +1193,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.trigger_callback();
   }
 
-  ValueSetFilterControls.prototype.put_controls = function (node) {
+  ValueSetFilterControls.prototype.put_controls = function (
+    node,
+    insert_before
+  ) {
     Object.getPrototypeOf(
       ValueSetFilterControls.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     var the_controls = this;
 
     // toggle checkbox:
@@ -1183,8 +1270,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
 
   // Available filter types
   var FILTER_TYPES = {
-    "compare…": ComparisonFilterControls,
     "select…": ValueSetFilterControls,
+    "compare…": ComparisonFilterControls,
   }
 
   // Controls for multiple filters that can be added or removed. The callback
@@ -1216,10 +1303,10 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     if (this.node) { this.put_controls(); } // refresh controls if required
   }
 
-  MultiFilterControls.prototype.put_controls = function (node) {
+  MultiFilterControls.prototype.put_controls = function (node, insert_before) {
     Object.getPrototypeOf(
       MultiFilterControls.prototype
-    ).put_controls.call(this, node);
+    ).put_controls.call(this, node, insert_before);
     var the_controls = this;
     let tab = this.node.append("table").attr("class", "subfilters");
     for (let i = 0; i < this.filters.length; ++i) {
@@ -1229,7 +1316,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       row.append("td")
         .attr("class", "subfilter_action")
         .append("a")
-          .attr("class", "x_button button")
+          .attr("class", "red_button button")
           .text("×")
           .on("click touchend", function () { the_controls.remove_filter(i); });
       let sub = row.append("td").attr("class", "subfilter");
@@ -1240,7 +1327,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     let row = tab.append("tr").attr("class", "subfilter_row");
     let sfa = row.append("td").attr("class", "subfilter_action");
     let pl_link = sfa.append("a")
-        .attr("class", "plus_button button")
+        .attr("class", "blue_button button")
         .text("+");
 
     let sub = row.append("td").attr("class", "subfilter");
@@ -1316,14 +1403,14 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   }
 
   // put our controls somewhere
-  View.prototype.put_controls = function(node) {
+  View.prototype.put_controls = function(node, insert_before) {
     if (node != undefined) {
       this.controls_node = node;
     } else {
       node = this.controls_node;
     }
     for (let i = 0; i < this.controls.length; ++i) {
-      this.controls[i].put_controls(node);
+      this.controls[i].put_controls(node, insert_before);
     }
   }
 
@@ -2601,6 +2688,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   return {
     "BaseWidget": BaseWidget,
     "ToggleWidget": ToggleWidget,
+    "HelpWidget": HelpWidget,
     "ButtonWidget": ButtonWidget,
     "SelectWidget": SelectWidget,
     "TextSelectWidget": TextSelectWidget,

@@ -316,15 +316,21 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     trf.selectAll("*").remove();
     trf.classed("collapsed", true);
     let thead = trf.append("div").attr("class", "controls_row");
+    var thelp = new vw.HelpWidget(
+      "Expand this panel to access data transformation options. "
+    + "Select a transformation type and the settings for that type will appear "
+    + "along with specific help for that type."
+    );
+    thelp.put_controls(thead);
     let tcollapse = thead.append("a");
-    tcollapse.attr("class", "collapse_button button")
-      .text("v")
+    tcollapse.attr("class", "black_button button")
+      .text("▾")
       .on("click touchend", function () {
-        if (tcollapse.node().innerText == "v") {
+        if (tcollapse.node().innerText == "▾") {
           tcollapse.text("–");
           trf.classed("collapsed", false);
         } else {
-          tcollapse.text("v");
+          tcollapse.text("▾");
           trf.classed("collapsed", true);
         }
       });
@@ -350,21 +356,24 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     );
     TRANSFORM_SELECT.put_controls(trf)
     tbody = trf.append("div");
-    var def_tf = transform_named(data, Object.keys(AVAILABLE_TRANSFORMS)[0]);
-    def_tf.put_controls(tbody);
+    CURRENT_TRANSFORM = transform_named(
+      data,
+      Object.keys(AVAILABLE_TRANSFORMS)[0]
+    );
+    CURRENT_TRANSFORM.put_controls(tbody);
 
     let flt = d3.select("#filters");
     flt.attr("class", "control_panel collapsed");
     let fhead = flt.append("div").attr("class", "controls_row");
     let fcollapse = fhead.append("a");
-    fcollapse.attr("class", "collapse_button button")
-      .text("v")
+    fcollapse.attr("class", "black_button button")
+      .text("▾")
       .on("click touchend", function () {
-        if (fcollapse.node().innerText == "v") {
+        if (fcollapse.node().innerText == "▾") {
           fcollapse.text("–");
           flt.attr("class", "control_panel");
         } else {
-          fcollapse.text("v");
+          fcollapse.text("▾");
           flt.attr("class", "control_panel collapsed");
         }
       });
