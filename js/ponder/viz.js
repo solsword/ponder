@@ -22,7 +22,7 @@ function (d3, utils, qt, prp) {
 
   // Computes a table layout with room at the top and left for the given
   // labels. The default padding (surrounding the whole table) is 0.02, while
-  // the default row and column margins are 0.03 each. The default label size
+  // the default row and column margins are 0.05 each. The default label size
   // is 0.15, which reserves 15% of the width (height) for row (column) labels.
   // Returns an object with the following fields:
   //
@@ -66,10 +66,10 @@ function (d3, utils, qt, prp) {
     }
 
     if (row_margin == undefined) {
-      row_margin = 0.03;
+      row_margin = 0.05;
     }
     if (col_margin == undefined) {
-      col_margin = 0.03;
+      col_margin = 0.05;
     }
 
     var n_rows = row_labels.length;
@@ -685,6 +685,10 @@ function (d3, utils, qt, prp) {
       return prp.format_number(d[1], "∙");
     }
 
+    // add spacing before computing layout!
+    row_labels = row_labels.map(x => x + NBSP);
+    col_labels = col_labels.map(x => x + NBSP);
+
     var layout = compute_matrix_layout(
       element,
       row_labels,
@@ -704,7 +708,7 @@ function (d3, utils, qt, prp) {
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "end")
       .attr("font-size", layout.rl_font_size + "px")
-      .text(d => d + NBSP);
+      .text(d => d);
 
     element.selectAll("text.column")
       .data(col_labels)
@@ -720,7 +724,7 @@ function (d3, utils, qt, prp) {
       .attr("dominant-baseline", "middle")
       .attr("text-anchor", "end")
       .attr("font-size", layout.cl_font_size + "px")
-      .text(d => d + NBSP);
+      .text(d => d);
 
     var cellgroup = element.selectAll("g")
       .data(items)

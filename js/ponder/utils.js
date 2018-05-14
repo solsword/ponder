@@ -382,6 +382,7 @@ define(["d3"], function (d3) {
 
   function get_text_size(string, font_size) {
     // Determines the bounding box of the given string in the given font size
+    // (in pixels).
     if (FONT_SIZE_ARENA == undefined) {
       FONT_SIZE_ARENA = d3.select("body")
         .append("svg")
@@ -391,7 +392,7 @@ define(["d3"], function (d3) {
     }
     var t = FONT_SIZE_ARENA.append("text")
       .text(string)
-      .attr("font-size", font_size);
+      .attr("font-size", font_size + "px");
 
     var result = t.node().getBBox();
     //var result = t.node().getBoundingClientRect();
@@ -418,13 +419,6 @@ define(["d3"], function (d3) {
     // height a bit (especially height if the input text has no descenders).
     // It can however also underestimate, usually when the text contains many
     // wide characters (or a really tall one, for height).
-    if (FONT_SIZE_ARENA == undefined) {
-      FONT_SIZE_ARENA = d3.select("body")
-        .append("svg")
-        .attr("opacity", 0)
-        .attr("width", 0)
-        .attr("height", 0);
-    }
     if (SIZE_MODELS.length == 0) {
       var models_short = []
       var models_medium = []
@@ -446,10 +440,14 @@ define(["d3"], function (d3) {
     if (slr <= 1) {
       var lower = SIZE_MODELS[0];
       var upper = undefined;
+      var li = 0;
+      var ui = undefined;
       var interp = slr;
     } else if (mlr <= 1) {
       var lower = SIZE_MODELS[0];
       var upper = SIZE_MODELS[1];
+      var li = 0;
+      var ui = 1;
       var interp = (
         (string.length - TEXT_PROTO_SHORT.length)
       / (TEXT_PROTO_MEDIUM.length - TEXT_PROTO_SHORT.length)
@@ -457,12 +455,16 @@ define(["d3"], function (d3) {
     } else if (llr <= 1) {
       var lower = SIZE_MODELS[1];
       var upper = SIZE_MODELS[2];
+      var li = 1;
+      var ui = 2;
       var interp = (
         (string.length - TEXT_PROTO_MEDIUM.length)
       / (TEXT_PROTO_LONG.length - TEXT_PROTO_MEDIUM.length)
       );
     } else {
       var lower = SIZE_MODELS[2];
+      var li = 2;
+      var ui = undefined;
       var upper = undefined;
       var interp = llr;
     }
@@ -503,8 +505,8 @@ define(["d3"], function (d3) {
         };
       } else {
         return {
-          "width": interp*(t * lower[left].width + (1-t) * lower[right].width),
-          "height": (t * lower[left].height + (1-t) * lower[right].height)
+          "width": interp*((1-t) * lower[left].width + t * lower[right].width),
+          "height": ((1-t) * lower[left].height + t * lower[right].height)
         };
       }
     } else {
@@ -512,15 +514,15 @@ define(["d3"], function (d3) {
         var lit = t * lower[left].width;
         var uit = t * upper[left].width;
         return {
-          "width": interp * uit + (1-interp) * lit,
+          "width": (1-interp) * lit + interp * uit,
           "height": t * lower[left].height
         };
       } else {
-        var lit = (t * lower[left].width + (1-t) * lower[right].width)
-        var uit = (t * upper[left].width + (1-t) * upper[right].width)
+        var lit = ((1-t) * lower[left].width + t * lower[right].width)
+        var uit = ((1-t) * upper[left].width + t * upper[right].width)
         return {
-          "width": interp * uit + (1-interp) * lit,
-          "height": (t * lower[left].height + (1-t) * lower[right].height)
+          "width": (1-interp) * lit + interp * uit,
+          "height": ((1-t) * lower[left].height + t * lower[right].height)
         };
       }
     }
