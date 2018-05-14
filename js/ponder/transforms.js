@@ -77,6 +77,13 @@ function (d3, utils, ds, vw, v) {
     }
   }
 
+  // Remove controls
+  BaseTransform.prototype.remove = function () {
+    Object.getPrototypeOf(BaseTransform.prototype).remove.call(this);
+    this.selector.remove();
+    this.apply_button.remove();
+  }
+
   // Put controls in place
   BaseTransform.prototype.put_controls = function (node) {
     Object.getPrototypeOf(
@@ -134,11 +141,15 @@ function (d3, utils, ds, vw, v) {
 
   // Put controls in place
   Reify.prototype.put_controls = function (node) {
-    Object.getPrototypeOf(Reify.prototype).put_controls.call(this,node);
-    // TODO: DEBUG THIS!
-    console.log("PUT");
+    Object.getPrototypeOf(Reify.prototype).put_controls.call(this, node);
     this.selector.remove(); // get rid of index selector
     this.filter.put_controls(node); // add filter controls
+  }
+
+  Reify.prototype.remove = function () {
+    Object.getPrototypeOf(Reify.prototype).remove.call(this);
+    this.filter.remove();
+    this.node.selectAll("*").remove();
   }
 
   Reify.prototype.update_filter = function () {
@@ -290,6 +301,13 @@ function (d3, utils, ds, vw, v) {
     Object.getPrototypeOf(Differentiate.prototype).put_controls.call(this,node);
     this.first_index_filters.put_controls(node);
     this.second_index_filters.put_controls(node);
+  }
+
+  Differentiate.prototype.remove = function () {
+    Object.getPrototypeOf(Differentiate.prototype).remove.call(this);
+    this.first_index_filters.remove();
+    this.second_index_filters.remove();
+    this.node.selectAll("*").remove();
   }
 
   Differentiate.prototype.update_first = function () {

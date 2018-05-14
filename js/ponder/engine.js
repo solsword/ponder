@@ -33,6 +33,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
   // The transformation widget
   var TRANSFORM_SELECT = undefined;
+  var CURRENT_TRANSFORM = undefined;
   var SAVED_TRANSFORMS = {};
 
   // Available transforms:
@@ -339,9 +340,12 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       tfoptions, // options
       tfoptions[0], // default
       function (selected) {
-        var transform = transform_named(data, selected);
-        tbody.selectAll("*").remove();
-        transform.put_controls(tbody);
+        if (CURRENT_TRANSFORM) {
+          CURRENT_TRANSFORM.remove();
+        }
+        CURRENT_TRANSFORM = transform_named(data, selected);
+        // tbody.selectAll("*").remove();
+        CURRENT_TRANSFORM.put_controls(tbody);
       }
     );
     TRANSFORM_SELECT.put_controls(trf)
