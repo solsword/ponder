@@ -117,7 +117,6 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       .text("?")
       .on("mouseover", function () {
         var bbox = utils.get_bbox(the_widget.node);
-        console.log(bbox);
         if (the_widget.popup) {
           the_widget.popup.remove();
           the_widget.popup = undefined;
@@ -1281,6 +1280,15 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.data = dataset;
     this.filters = [];
     this.callback = callback;
+    this.help = new HelpWidget(
+      "This control allows you to specify a set of filtering criteria. Use "
+    + "the '+' button to add a new filter block (results must pass each block "
+    + "to pass the combined filter). Filter blocks either 'select' a set of "
+    + "accepted values, or 'compare' numerical values against a threshold "
+    + "using a specific comparison operation. The field used in each block "
+    + "can be selected independently, and added blocks may also be removed by "
+    + "clicking the 'x' button on their left-hand side."
+    );
   }
 
   MultiFilterControls.prototype = Object.create(BaseWidget.prototype);
@@ -1307,6 +1315,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     Object.getPrototypeOf(
       MultiFilterControls.prototype
     ).put_controls.call(this, node, insert_before);
+    this.help.remove();
+    this.help.put_controls(this.node);
     var the_controls = this;
     let tab = this.node.append("table").attr("class", "subfilters");
     for (let i = 0; i < this.filters.length; ++i) {
@@ -1344,6 +1354,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
         the_controls.add_filter(utils.get_selected_value(fts.node()));
       }
     );
+  }
+
+  MultiFilterControls.prototype.remove = function () {
+    this.help.remove();
+    Object.getPrototypeOf(MultiFilterControls.prototype).remove.call(this);
   }
 
   MultiFilterControls.prototype.apply_filter = function (records) {

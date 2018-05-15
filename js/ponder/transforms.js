@@ -90,6 +90,7 @@ function (d3, utils, ds, vw, v) {
       BaseTransform.prototype
     ).put_controls.call(this, node, insert_before);
     this.selector.put_controls(this.node);
+    this.selector.node.classed("transform_selector", true);
     this.apply_button.put_controls(this.node);
     this.apply_button.node.classed("transform_apply_button", true);
   }
@@ -127,6 +128,11 @@ function (d3, utils, ds, vw, v) {
     );
     this.records = this.data.records;
     this.update_filter();
+    this.help = new vw.HelpWidget(
+      "This transform adds a numeric field to the dataset that has a value "
+    + "of 0 or 1 depending on whether a filter passes. You can use it to bake "
+    + "complex filters into the data to make filtering/displaying it simpler."
+    );
   }
 
   Reify.prototype = Object.create(BaseTransform.prototype);
@@ -146,6 +152,8 @@ function (d3, utils, ds, vw, v) {
       Reify.prototype
     ).put_controls.call(this, node, insert_before);
     this.selector.remove(); // get rid of index selector
+    // add help
+    this.help.put_controls(this.node, ".transform_apply_button");
     // add label
     this.label = this.node.insert("span", ".transform_apply_button")
       .attr("class", "label")
@@ -187,6 +195,18 @@ function (d3, utils, ds, vw, v) {
       default_index,
       ds.numeric_vector_type(2)
     );
+    this.help = new vw.HelpWidget(
+      "Circularize applies to a vector-valued field, and produces a new "
+    + "2-dimensional vector field as follows: First, each dimension of the "
+    + "original vector is assigned a point along the edge of the unit circle. "
+    + "Next, each vector is mapped to a weighted average of those points "
+    + "according to its normalized values along each dimension. Points that "
+    + "are similar in the multidimensional space will be mapped to similar "
+    + "places in the 2D space, although other non-similar points could also "
+    + "overlap by coincidence. Using the new dimensions as x- and y- axes for "
+    + "the lens view plus a histogram view of the original multidimensional "
+    + "field should provide insight as to what got mapped where."
+    );
   }
 
   Circularize.prototype = Object.create(BaseTransform.prototype);
@@ -206,7 +226,17 @@ function (d3, utils, ds, vw, v) {
     this.vt = ds.vector_transform(this.data, this.index);
   }
 
-  // put_controls is inherited
+  Circularize.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      Circularize.prototype
+    ).put_controls.call(this, node, insert_before);
+    this.help.put_controls(this.node, ".transform_selector");
+  }
+
+  Circularize.prototype.remove = function() {
+    this.help.remove();
+    Object.getPrototypeOf(Circularize.prototype).remove.call(this);
+  }
 
   // Value for a record defines the core of the transformation
   Circularize.prototype.value_for = function (record) {
@@ -291,6 +321,21 @@ function (d3, utils, ds, vw, v) {
     this.second_records = this.data.records;
     this.update_first();
     this.update_second();
+    this.help = new vw.HelpWidget(
+      "Differentiate applies to a multidimensional field and produces a "
+    + "2-dimensional field by projecting onto an artificial axis created by "
+    + "drawing a line between the average vectors of two distinct subsets of "
+    + "the data. This requires that the user specify two different filters, "
+    + "each of which constructs a subset of the original data (the union of "
+    + "these subsets doesn't have to be the full dataset). The first dimension "
+    + "of the result is the projection of each multidimensional point onto "
+    + "the line that intersects the average points of each selected subset, "
+    + "with a value of '0' at the start of that line and a value of '1' at the "
+    + "end (points before the start and after the end get negative and more-"
+    + "positive values). The second dimension of the result is the Euclidean "
+    + "distance in the multidimensional space from the point being mapped to "
+    + "the target line."
+    );
   }
 
   Differentiate.prototype = Object.create(BaseTransform.prototype);
@@ -311,6 +356,7 @@ function (d3, utils, ds, vw, v) {
   // Put controls in place
   Differentiate.prototype.put_controls = function (node) {
     Object.getPrototypeOf(Differentiate.prototype).put_controls.call(this,node);
+    this.help.put_controls(this.node, ".transform_selector");
     // add first label
     this.first_label = this.node.insert("span", ".transform_apply_button")
       .attr("class", "label")
@@ -330,6 +376,7 @@ function (d3, utils, ds, vw, v) {
     if (this.first_index_filters) { this.first_index_filters.remove(); }
     if (this.second_label) { this.second_label.remove(); }
     if (this.second_index_filters) { this.second_index_filters.remove(); }
+    this.help.remove();
     Object.getPrototypeOf(Differentiate.prototype).remove.call(this);
   }
 

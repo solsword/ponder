@@ -254,8 +254,8 @@ table.fields_list th, table.fields_list td {
 }
 
 .gray_button {
-  background: #ddd;
-  border-color: #ddd;
+  background: #999;
+  border-color: #999;
 }
 
 .field_select {

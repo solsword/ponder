@@ -319,7 +319,10 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     var thelp = new vw.HelpWidget(
       "Expand this panel to access data transformation options. "
     + "Select a transformation type and the settings for that type will appear "
-    + "along with specific help for that type."
+    + "along with specific help for that type. When applied, each transform "
+    + "will make new data fields available for selection in all of the places "
+    + "that a data field can be used. Some transforms may take a bit of time "
+    + "to complete depending on the size of the dataset."
     );
     thelp.put_controls(thead);
     let tcollapse = thead.append("a");
@@ -365,6 +368,14 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     let flt = d3.select("#filters");
     flt.attr("class", "control_panel collapsed");
     let fhead = flt.append("div").attr("class", "controls_row");
+    var fhelp = new vw.HelpWidget(
+      "Expand this panel to access data filtering options. The selected "
+    + "filters will be applied to the data from the left-hand graph before "
+    + "it is displayed in the right-hand graph. The filter will be applied to "
+    + "selected items, and the number of selected and filtered items is shown "
+    + "above."
+    );
+    fhelp.put_controls(fhead);
     let fcollapse = fhead.append("a");
     fcollapse.attr("class", "black_button button")
       .text("▾")
@@ -514,6 +525,17 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
   // Main setup
   function do_viz() {
+    var upload_help = new vw.HelpWidget(
+      "The preprocessor can accept CSV and TSV files, but the visualizer needs "
+    + "extra information about data fileds and types. Upload a file there "
+    + "first and download the result to upload here. Note that all processing "
+    + "and visualization is handled locally in your browser; neither page "
+    + "connects to an external server."
+    );
+    upload_help.put_controls(
+      d3.select("#top_controls_row"),
+      "#data_file_label"
+    );
     LEFT_WINDOW = d3.select("#left_window");
     var lw = utils.get_width(LEFT_WINDOW);
     var lhm = lw * MARGIN;
