@@ -98,7 +98,7 @@ a:active {
 }
 
 .collapsed {
-  max-height: 2.5ex;
+  max-height: 2.4ex;
   overflow-y: hidden;
 }
 
@@ -222,6 +222,10 @@ table.fields_list th, table.fields_list td {
   background-color: #79f;
 }
 
+.bold {
+  font-weight: bold;
+}
+
 .match_empty {
   color: #f97;
 }
@@ -310,6 +314,6 @@ table.fields_list th, table.fields_list td {
   border-radius: 3pt;
   background: #fff;
   padding: 2pt 6pt;
-  max-width: 18em;
+  max-width: 24em;
   text-align: left;
 }

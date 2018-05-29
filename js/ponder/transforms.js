@@ -80,6 +80,9 @@ function (d3, utils, ds, vw, v) {
   // Remove controls
   BaseTransform.prototype.remove = function () {
     Object.getPrototypeOf(BaseTransform.prototype).remove.call(this);
+    if (this.help) {
+      this.help.remove();
+    }
     this.selector.remove();
     this.apply_button.remove();
   }
@@ -120,7 +123,6 @@ function (d3, utils, ds, vw, v) {
       { "kind": "number" }
     );
     var the_tf = this;
-    this.label = undefined;
     this.filter = undefined;
     this.filter = new vw.MultiFilterControls(
       this.data,
@@ -152,21 +154,18 @@ function (d3, utils, ds, vw, v) {
       Reify.prototype
     ).put_controls.call(this, node, insert_before);
     this.selector.remove(); // get rid of index selector
-    // add help
+    // add label with help
+    this.node.insert("span", ".transform_apply_button")
+      .attr("class", "bold label")
+      .text("Reify ");
     this.help.put_controls(this.node, ".transform_apply_button");
-    // add label
-    this.label = this.node.insert("span", ".transform_apply_button")
-      .attr("class", "label")
-      .text("Filter settings:");
+    this.node.insert("br", ".transform_apply_button");
     // add filter controls
     this.filter.put_controls(this.node, ".transform_apply_button");
   }
 
   Reify.prototype.remove = function () {
     this.filter.remove();
-    if (this.label) {
-      this.label.remove();
-    }
     Object.getPrototypeOf(Reify.prototype).remove.call(this);
   }
 
@@ -230,7 +229,11 @@ function (d3, utils, ds, vw, v) {
     Object.getPrototypeOf(
       Circularize.prototype
     ).put_controls.call(this, node, insert_before);
+    this.node.insert("span", ".transform_selector")
+      .attr("class", "bold label")
+      .text("Circularize ");
     this.help.put_controls(this.node, ".transform_selector");
+    this.node.insert("br", ".transform_selector");
   }
 
   Circularize.prototype.remove = function() {
@@ -311,11 +314,13 @@ function (d3, utils, ds, vw, v) {
     this.second_index_filters = undefined;
     this.first_index_filters = new vw.MultiFilterControls(
       this.data,
-      function () { the_tf.update_first(); }
+      function () { the_tf.update_first(); },
+      "Origin criteria:"
     );
     this.second_index_filters = new vw.MultiFilterControls(
       this.data,
-      function () { the_tf.update_second(); }
+      function () { the_tf.update_second(); },
+      "Endpoint criteria:"
     );
     this.first_records = this.data.records;
     this.second_records = this.data.records;
@@ -326,7 +331,7 @@ function (d3, utils, ds, vw, v) {
     + "2-dimensional field by projecting onto an artificial axis created by "
     + "drawing a line between the average vectors of two distinct subsets of "
     + "the data. This requires that the user specify two different filters, "
-    + "each of which constructs a subset of the original data (the union of "
+    + "each of which identifies a subset of the original data (the union of "
     + "these subsets doesn't have to be the full dataset). The first dimension "
     + "of the result is the projection of each multidimensional point onto "
     + "the line that intersects the average points of each selected subset, "
@@ -356,19 +361,14 @@ function (d3, utils, ds, vw, v) {
   // Put controls in place
   Differentiate.prototype.put_controls = function (node) {
     Object.getPrototypeOf(Differentiate.prototype).put_controls.call(this,node);
+    this.node.insert("span", ".transform_selector")
+      .attr("class", "bold label")
+      .text("Differentiate ");
     this.help.put_controls(this.node, ".transform_selector");
+    this.node.insert("br", ".transform_selector");
     // add first label
-    this.first_label = this.node.insert("span", ".transform_apply_button")
-      .attr("class", "label")
-      .text("Origin filter:");
     this.first_index_filters.put_controls(this.node, ".transform_apply_button");
-    this.second_label = this.node.insert("span", ".transform_apply_button")
-      .attr("class", "label")
-      .text("Endpoint filter:");
-    this.second_index_filters.put_controls(
-      this.node,
-      ".transform_apply_button"
-    );
+    this.second_index_filters.put_controls(this.node,".transform_apply_button");
   }
 
   Differentiate.prototype.remove = function () {

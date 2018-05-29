@@ -284,7 +284,8 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
     // right window mode select
     if (RIGHT_SELECT != undefined) {
-      RIGHT_SELECT.node.remove();
+      RIGHT_SELECT.help.remove();
+      RIGHT_SELECT.remove();
     }
     RIGHT_SELECT = new vw.SelectWidget(
       "Right pane mode: ",
@@ -296,10 +297,19 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     );
 
     RIGHT_SELECT.put_controls(d3.select("#top_panel"));
+    RIGHT_SELECT.help = new vw.HelpWidget(
+      "Use this to select which graph mode will be used for the right-hand "
+    + "viewing pane. Options will be saved when switching modes. 'Histogram' "
+    + "mode is useful to quickly view the data, while 'matrix' mode can be "
+    + "used to make detailed comparisons between multiple categories."
+    );
+    RIGHT_SELECT.node.append("span").text(viz.NBSP);
+    RIGHT_SELECT.help.put_controls(RIGHT_SELECT.node);
 
     // the lens toggle
     if (LENS_TOGGLE != undefined) {
-      LENS_TOGGLE.node.remove();
+      LENS_TOGGLE.help.remove();
+      LENS_TOGGLE.remove();
     }
     LENS_TOGGLE = new vw.ToggleWidget(
       "Select all",
@@ -310,21 +320,20 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       }
     );
     LENS_TOGGLE.put_controls(d3.select("#selcount"));
+    LENS_TOGGLE.node.append("span").text(viz.NBSP);
+    LENS_TOGGLE.help = new vw.HelpWidget(
+      "Toggle this to ignore the selection circle from the left-hand view and "
+    + "count all records as selected. The numbers below show how many records "
+    + "are currently selected, and how many of those pass the specified "
+    + "filter(s)."
+    );
+    LENS_TOGGLE.help.put_controls(LENS_TOGGLE.node);
 
     // transforms
     let trf = d3.select("#transform");
     trf.selectAll("*").remove();
     trf.classed("collapsed", true);
     let thead = trf.append("div").attr("class", "controls_row");
-    var thelp = new vw.HelpWidget(
-      "Expand this panel to access data transformation options. "
-    + "Select a transformation type and the settings for that type will appear "
-    + "along with specific help for that type. When applied, each transform "
-    + "will make new data fields available for selection in all of the places "
-    + "that a data field can be used. Some transforms may take a bit of time "
-    + "to complete depending on the size of the dataset."
-    );
-    thelp.put_controls(thead);
     let tcollapse = thead.append("a");
     tcollapse.attr("class", "black_button button")
       .text("▾")
@@ -338,6 +347,15 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         }
       });
     thead.append("span").attr("class", "label").text("Transform:");
+    var thelp = new vw.HelpWidget(
+      "Expand this panel to access data transformation options. "
+    + "Select a transformation type and the settings for that type will appear "
+    + "along with specific help for that type. When applied, each transform "
+    + "will make new data fields available for selection in all of the places "
+    + "that a data field can be used. Some transforms may take a bit of time "
+    + "to complete depending on the size of the dataset."
+    );
+    thelp.put_controls(thead);
     let tbody = undefined;
 
     if (TRANSFORM_SELECT != undefined) {
@@ -368,14 +386,6 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     let flt = d3.select("#filters");
     flt.attr("class", "control_panel collapsed");
     let fhead = flt.append("div").attr("class", "controls_row");
-    var fhelp = new vw.HelpWidget(
-      "Expand this panel to access data filtering options. The selected "
-    + "filters will be applied to the data from the left-hand graph before "
-    + "it is displayed in the right-hand graph. The filter will be applied to "
-    + "selected items, and the number of selected and filtered items is shown "
-    + "above."
-    );
-    fhelp.put_controls(fhead);
     let fcollapse = fhead.append("a");
     fcollapse.attr("class", "black_button button")
       .text("▾")
@@ -389,10 +399,18 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
         }
       });
     fhead.append("span").attr("class", "label").text("Filter:");
+    var fhelp = new vw.HelpWidget(
+      "Expand this panel to access data filtering options. The selected "
+    + "filters will be applied to the data from the left-hand graph before "
+    + "it is displayed in the right-hand graph. The filter will be applied to "
+    + "selected items, and the number of selected and filtered items is shown "
+    + "above."
+    );
+    fhelp.put_controls(fhead);
 
     // filters
     if (FILTER != undefined) {
-      FILTER.node.remove();
+      FILTER.remove();
     }
     FILTER = new vw.MultiFilterControls(
       data,
@@ -532,10 +550,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     + "and visualization is handled locally in your browser; neither page "
     + "connects to an external server."
     );
-    upload_help.put_controls(
-      d3.select("#top_controls_row"),
-      "#data_file_label"
-    );
+    upload_help.put_controls(d3.select("#top_controls_row"));
     LEFT_WINDOW = d3.select("#left_window");
     var lw = utils.get_width(LEFT_WINDOW);
     var lhm = lw * MARGIN;

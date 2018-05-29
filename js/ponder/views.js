@@ -7,9 +7,10 @@ define(
   "./dataset",
   "./properties",
   "./filters",
-  "./viz"
+  "./viz",
+  "./vector"
 ],
-function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
+function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
   //////////////////////
   // Shared constants //
@@ -31,6 +32,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
 
   // Milliseconds to wait after focusout event before closing a menu
   var MENU_TIMEOUT_HACK = 180;
+
+  // Width (in pixels) that help text boxes will attempt to clear from the
+  // right side of the screen during pre-placement adjustments.
+  var HELP_CLEAR_WIDTH = 240;
+
+  // Minimum margin between help boxes and the edges of the page.
+  var HELP_MARGIN = 3;
 
   ////////////////
   // BaseWidget //
@@ -121,10 +129,20 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           the_widget.popup.remove();
           the_widget.popup = undefined;
         }
+        var html = d3.select("html").node();
+        let scroll_x = html.scrollLeft;
+        let scroll_y = html.scrollTop;
+        let el_top = bbox.y + scroll_y;
+        let el_left = bbox.x + scroll_x;
+        let orig_bottom = html.scrollHeight;
+        let orig_right = html.scrollWidth;
+        if (el_left + HELP_CLEAR_WIDTH > orig_right - HELP_MARGIN) {
+          el_left = orig_right - HELP_MARGIN - HELP_CLEAR_WIDTH;
+        }
         the_widget.popup = d3.select("body").append("div")
           .attr("class", "help")
-          .style("top", bbox.y + "px")
-          .style("left", bbox.x + "px")
+          .style("top", el_top + "px")
+          .style("left", el_left + "px")
           .style("position", "absolute")
           .text(text)
           .on("mouseout", function () {
@@ -133,14 +151,20 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
               the_widget.popup = undefined;
             }
           });
-      })
-      .on("click touchend", function () {
-        if (the_widget.popup) {
-          the_widget.popup.remove();
-          the_widget.popup = undefined;
+        let sh = the_widget.popup.node().scrollHeight;
+        if (sh >= orig_bottom - 2*HELP_MARGIN) { // to big to fit
+          the_widget.popup.style("top", HELP_MARGIN + "px");
+        } else if (el_top + sh > orig_bottom - HELP_MARGIN) {
+          the_widget.popup.style("top", "");
+          the_widget.popup.style("bottom", (HELP_MARGIN - scroll_y) + "px");
         }
-        // TODO: HERE
-        // the_widget.trigger_callback();
+        let sw = the_widget.popup.node().scrollWidth;
+        if (sw >= orig_right - 2*HELP_MARGIN) { // to big to fit
+          the_widget.popup.style("left", HELP_MARGIN + "px");
+        } else if (el_left + sw > orig_right - HELP_MARGIN) {
+          the_widget.popup.style("left", "");
+          the_widget.popup.style("right", (HELP_MARGIN - scroll_x) + "px");
+        }
       });
   }
 
@@ -259,7 +283,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     } else {
       ltext = this.label;
     }
-    this.node.text(ltext);
+    this.node.append("span").attr("class", "label").text(ltext);
     var the_widget = this;
     var opts;
     if (typeof this.options === "function") {
@@ -1149,7 +1173,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           match_item
             .attr("class", "match_item")
             .append("a")
-              .attr("class", "re_button button")
+              .attr("class", "red_button button")
               .text("×")
               .on("click touchend", function () {
                 the_controls.set_accept(i, false);
@@ -1275,9 +1299,14 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
 
   // Controls for multiple filters that can be added or removed. The callback
   // will be called (without arguments) after every parameter change.
-  function MultiFilterControls(dataset, callback) {
+  function MultiFilterControls(dataset, callback, label) {
     BaseWidget.call(this);
     this.data = dataset;
+    if (label == undefined) {
+      this.label = "Criteria:";
+    } else {
+      this.label = label;
+    }
     this.filters = [];
     this.callback = callback;
     this.help = new HelpWidget(
@@ -1315,7 +1344,15 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     Object.getPrototypeOf(
       MultiFilterControls.prototype
     ).put_controls.call(this, node, insert_before);
-    this.help.remove();
+    let ltext;
+    if (typeof this.label === "function") {
+      ltext = this.label();
+    } else {
+      ltext = this.label;
+    }
+    this.node.append("span")
+      .attr("class", "label")
+      .text(ltext);
     this.help.put_controls(this.node);
     var the_controls = this;
     let tab = this.node.append("table").attr("class", "subfilters");
@@ -1386,10 +1423,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
   // Generic View //
   //////////////////
 
-  function View(id, dataset, controls) {
+  function View(id, dataset, controls, help) {
     this.id = id;
     this.data = dataset;
     this.controls = controls || [];
+    this.help = help || [];
     this.frame = undefined;
     this.controls_node = undefined;
   }
@@ -1426,12 +1464,20 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     }
     for (let i = 0; i < this.controls.length; ++i) {
       this.controls[i].put_controls(node, insert_before);
+      if (this.help[i]) {
+        this.controls[i].node.append("span").text(viz.NBSP);
+        this.help[i].remove();
+        this.help[i].put_controls(this.controls[i].node);
+      }
     }
   }
 
   View.prototype.remove_controls = function () {
     this.controls.forEach(function (c) {
       c.remove();
+    });
+    this.help.forEach(function (h) {
+      h.remove();
     });
   }
 
@@ -1464,6 +1510,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     this.set_x_axis(x_index);
     this.set_y_axis(y_index);
 
+    this.display_label = undefined;
+
     var the_view = this;
 
     this.controls.push(
@@ -1477,6 +1525,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "Hiding the text at the edges of the graph can help when it overlaps "
+      + "with points that are placed near the edges."
+      )
+    );
+
     this.controls.push(
       new ToggleWidget(
         "Show point approximation (instead of density)",
@@ -1485,6 +1540,15 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           the_view.show_density = !yes;
           the_view.draw(); // redraw
         }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "By default, multiple nearby points are shown as a single point with a "
+      + "density value. If you uncheck this, you can view the raw regions used "
+      + "to compute densities, which is only really useful for very dense data "
+      + "sets. To avoid grouping points, set a smaller resolution value below."
       )
     );
 
@@ -1501,6 +1565,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "This selector controls the resolution at which points are grouped. "
+      + "Use smaller values to see more data points, and to avoid grouping. "
+      + "The points are drawn at a size of 2 units, so the smallest available "
+      + "resolution is 2. The units are screen units, and are independent of "
+      + "the current graph axis units."
+      )
+    );
+
     this.controls.push(
       new TextSelectWidget(
         "X-axis: ",
@@ -1514,6 +1588,17 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "This controls which field is used to determine the x-coordinate of "
+      + "each data point. The axis will automatically scale to include the "
+      + "full range of the data. Text fields are automatically converted to "
+      + "numeric values by mapping unique text values to different integers, "
+      + "but tensor and map fields just give 0 for every point (generally, you "
+      + "should select a subfield from a tensor or map)."
+      )
+    );
+
     this.controls.push(
       new TextSelectWidget(
         "Y-axis: ",
@@ -1524,6 +1609,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           the_view.rebind();
           the_view.draw();
         }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "This controls which field is used to determine the y-coordinate of "
+      + "each data point. See the help for the x-axis for more details."
       )
     );
 
@@ -1551,6 +1643,19 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "This sets the field that will be used to determine the color of each "
+      + "point. The default is to use the relative density of each point-group "
+      + "as the color key, which may result in flat coloring if your points "
+      + "are sparse enough that none get grouped together. Non-numeric fields "
+      + "are mapped to numeric values using the same rules as for the axes "
+      + "(see the x-axis help). Then the whole value range is normalized to "
+      + "between 0 and 1, and mapped to the color scale chosen below. Outlier "
+      + "coloring changes this slightly (see below)."
+      )
+    );
+
     this.color_widget = new ColorScaleWidget(
       "custom",
       "#000",
@@ -1559,6 +1664,15 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       function () { the_view.draw(); }
     );
     this.controls.push(this.color_widget);
+
+    this.help.push(
+      new HelpWidget(
+        "Controls the color scale used to interpret the color value selected "
+      + "above. You can choose a pre-set scale, or define your own by picking "
+      + "two endpoint colors (the gradient used is a cube helix gradient). Use "
+      + "'flat' if you don't want color variation."
+      )
+    );
 
     this.controls.push(
       new TextSelectWidget(
@@ -1584,6 +1698,41 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "Sets the field to be used as the label for each point. Note that when "
+      + "there are many points, labels will overlap and won't really be "
+      + "useful. When multiple grouped points have different label values, if "
+      + "there's one value that comprises a majority that value will be shown "
+      + "folloed by a '*', otherwise just a '*' will be shown for that point. "
+      + "Set this to 'none' to disable labels."
+      )
+    );
+
+    this.controls.push(
+      new TextSelectWidget(
+        "Display: ",
+        function () {
+          return ["count"].concat(ds.index_names(the_view.data));
+        },
+        function () {
+          if (the_view.d_index != undefined) {
+            return ds.get_name(the_view.data, the_view.d_index);
+          } else {
+            return "count";
+          }
+        },
+        function (iname) {
+          if (iname == "count") {
+            the_view.set_display(undefined);
+          } else {
+            the_view.set_display(iname);
+          }
+          the_view.draw();
+        }
+      )
+    );
+
     this.controls.push(
       new ToggleWidget(
         "Color outliers separately",
@@ -1602,12 +1751,32 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "This toggles whether the color scale is mapped to the full range of "
+      + "values from the color-by field, or whether only inlier values are "
+      + "mapped. If toggled, values more than three standard deviations from "
+      + "the mean of the selected field will use a different color (specified "
+      + "below) and only values within that range will me mapped to the color "
+      + "scale. This is useful when, for example, a single extremely-dense "
+      + "point washes out the colors for the rest of the graph (using "
+      + "density-based coloring)."
+      )
+    );
+
     this.outlier_color_widget = new ColorWidget(
       "Outlier color:",
       "#a8ff00", // "#cc77ff",
       function (color) { the_view.draw(); }
     );
     this.controls.push(this.outlier_color_widget);
+
+    this.help.push(
+      new HelpWidget(
+        "This sets the color used for outlier points, if the above option for "
+      + "separate outlier colors is enabled."
+      )
+    );
   }
 
   LensView.prototype = Object.create(View.prototype);
@@ -1690,17 +1859,17 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       this.get_label
     );
 
-    // selection count label
-    var scl = this.frame.append("text")
+    // display label
+    this.display_label = this.frame.append("text")
       .attr("id", "select_count_label")
       .attr("class", "label")
       .attr("x", fw * 0.99)
       .attr("y", fh * 0.01)
       .style("text-anchor", "end")
-      .style("dominant-baseline", "hanging")
-      .text(this.selected.length + " items selected");
+      .style("dominant-baseline", "hanging");
+    this.update_display();
 
-    if (this.hide_labels) { scl.style("display", "none"); }
+    if (this.hide_labels) { this.display_label.style("display", "none"); }
 
     // x-axis:
     var xa = this.frame.append("g")
@@ -1852,9 +2021,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     for (let i = 0; i < this.selection_listeners.length; ++i) {
       this.selection_listeners[i](this.selected, this);
     }
-    // Update selection count label
-    this.frame.select("#select_count_label")
-      .text(this.selected.length + " items selected");
+
+    // Update our display value
+    this.update_display();
   }
 
   // Sets the coloring property for a view; use 'undefined' as the index to
@@ -1903,6 +2072,44 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     } else {
       this.get_label = undefined;
     }
+  }
+
+  // Sets the index to use for the display value. Reset to use just selected
+// item count by passing undefined as d_index.
+  LensView.prototype.set_display = function(d_index) {
+    if (typeof d_index === "string") {
+      d_index = ds.lookup_index(this.data, d_index);
+    }
+    this.d_index = d_index;
+  }
+
+  LensView.prototype.update_display = function() {
+    if (this.display_label == undefined) {
+      return;
+    }
+
+    let dtext = "undefined";
+    if (this.d_index == undefined) {
+      dtext = this.selected.length + " items selected";
+    } else {
+      let d_type = ds.get_type(this.data, this.d_index);
+      let fval = ds.fuse_values(this.data, this.selected, this.d_index);
+      console.log([d_type.kind, fval]);
+      if (d_type.kind == "number") {
+        dtext = "avg " + fval.toPrecision(4);
+      } else if (d_type.kind == "string") {
+        dtext = utils.dominance_summary(fval);
+      } else if (d_type.kind == "tensor") {
+        let td = v.tensor_total_dimension(fval);
+        if (td <= utils.A_FEW) {
+        } else {
+          dtext = "<" + td + "-dimensional>";
+        }
+      } else if (d_type.kind == "map") {
+        dtext = utils.dominance_summary(fval);
+      }
+    }
+    this.display_label.text(dtext);
   }
 
   // Sets the grid resolution. Call rebind afterwards to rebuild the quadtree.
@@ -2016,6 +2223,20 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "Which field to make a histogram from. If a numeric field is selected, "
+      + "by default 10 bins will be arranged across its full range and the "
+      + "bars will represent records falling into each bin (missing values "
+      + "will be treated as zeros). If there are fewer than 30 distinct "
+      + "values, however, or when the field selected is a text field, each bar "
+      + "will represent a distinct value. When a tensor or map field is "
+      + "selected, each bar will represent a single dimension/subfield of that "
+      + "tensor/map, with bar lengths being the sum of values in that "
+      + "dimension rather than a count of records with values in a range."
+      )
+    );
+
     this.controls.push(
       new ToggleWidget(
         "Sort by largest first (otherwise use natural order)",
@@ -2028,6 +2249,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     )
 
+    this.help.push(
+      new HelpWidget(
+        "Toggle to sort bars by their length instead of using the default "
+      + "ordering (roughly smallest-value to largest-value for bin labels)."
+      )
+    );
+
     this.controls.push(
       new ToggleWidget(
         "Count non-zero/non-missing values (even when values could be summed)",
@@ -2037,6 +2265,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           the_view.update();
           the_view.draw();
         }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "For tensor and map fields, values are normally summed in each "
+      + "dimension/subfield and those sums are used for bar values. When this "
+      + "is toggled, instead each value is just counted as a 1 if it is "
+      + "non-zero (and not missing) or a 0 if it is missing or has the value "
+      + "0. This has no effect for numeric or text fields."
       )
     );
 
@@ -2052,15 +2290,33 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "This toggle causes values in each bin to be averaged across all "
+      + "records instead of added up. For numeric and text fields, effectively "
+      + "computes the percentage falling into each category. For vectors and "
+      + "maps, each bar will be the average for one dimension/subfield."
+      )
+    );
+
     this.controls.push(
       new ToggleWidget(
-        "Normalzie values (relative to largest)",
+        "Normalize values (relative to largest)",
         this.flags.normalize,
         function (yes) {
           the_view.flags.normalize = yes;
           the_view.update();
           the_view.draw();
         }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "Does not affect how bar values are computed, but just expresses the "
+      + "displayed numbers in terms of the length fo the longest bar. Note "
+      + "that for numeric and text fields, using averaging (see above) will "
+      + "produce percentages, which is another form of normalization."
       )
     );
 
@@ -2097,6 +2353,14 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "When there are many bins, the text may become too small to read. This "
+      + "option (best combined with sorting) will hide off bars beyond the "
+      + "selected limit so that the remaining bars can be read clearly."
+      )
+    );
+
     var bins_options = [
       "<auto>", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 100
     ]
@@ -2119,6 +2383,17 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "Use this to specify the number of bins to use, which also turns off "
+      + "the automatic grouping for fields with fewer than 30 distinct values. "
+      + "Note, however, that ranges with no data will always be hidden, so "
+      + "there will never be more bars shown than distinct values in the data. "
+      + "This control has no effect for tensor or map fields, where the number "
+      + "of bins is always equal to the number of dimensions/subfields."
+      )
+    );
+
     this.color_widget = new ColorScaleWidget(
       "flat",
       "#6688cc",
@@ -2127,6 +2402,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       function () { the_view.draw(); }
     );
     this.controls.push(this.color_widget);
+
+    this.help.push(
+      new HelpWidget(
+        "When set to a value other than 'flat,' each bar will be colored "
+      + "according to its length relative to the longest bar. You can choose a "
+      + "pre-defined scale or create your own custom scale by selecting two "
+      + "endpoint colosr. The gradient used for custom scales is a cube-helix "
+      + "gradient."
+      )
+    );
   }
 
   Histogram.prototype = Object.create(View.prototype);
@@ -2436,6 +2721,30 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "Select the field that you want to use for the rows. Numeric or text "
+      + "fields are converted to a category vector using a 1-hot encoding "
+      + "where their value is a 1 among a vector with slots for each possible "
+      + "value in the dataset, and the rest of those slots are undefined (not "
+      + "zero). Tensor or map fields are interpreted as a category vector "
+      + "where each dimension/subfield is a category, and values in each "
+      + "dimension/subfield are the vector components. To build a matrix, for "
+      + "each cell of the table, the category values for the row and column "
+      + "fields for that cell are multiplied together, and the result is "
+      + "multiplied by the value field (if there is one). If either the row or "
+      + "column membership is undefined, the cell in question will be skipped "
+      + "for this record; otherwise the result is added to the cell in "
+      + "question, and after values from all records have been summed, the "
+      + "result is divided by the nubmer of contributing records (which may "
+      + "differ between cells). So for example, using a text field 'gender' "
+      + "for columns and a tensor for rows would show the average value for "
+      + "each component of that tensor separated according to the gender "
+      + "values. To display interactions, use text/numeric fields for both "
+      + "rows and columns and the (numeric) field of interest as the 'value.'"
+      )
+    );
+
     this.controls.push(
       new TextSelectWidget(
         "Columns: ",
@@ -2451,6 +2760,13 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
           the_view.rebind();
           the_view.draw();
         }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "Select the field to use for column vectors. See the help for 'Rows' "
+      + "for a description of how the matrix is constructed."
       )
     );
 
@@ -2472,6 +2788,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
       )
     );
 
+    this.help.push(
+      new HelpWidget(
+        "Select the field to use for values. See the help for 'Rows' for the "
+      + "details of matrix construction. Note that this is only really useful "
+      + "when both rows and columns are 1-hot vectors (i.e., numeric or string "
+      + "fields). Set this to 'none' to just use row and column vectors in the "
+      + "matrix without multiplying in any other values."
+      )
+    );
+
     this.color_scale_widget = new ColorScaleWidget(
       "custom",
       "#6688cc",
@@ -2481,6 +2807,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
     this.controls.push(this.color_scale_widget);
 
+    this.help.push(
+      new HelpWidget(
+        "This sets the color scale used to color each matrix cell. Although "
+      + "each cell holds an average value (as detailed above) the color scale "
+      + "is stretched between the minimum and maximum observed values for any "
+      + "single record in any cell of the matrix. This means that the full "
+      + "range will usually not be used."
+      )
+    );
+
     this.label_color_widget = new ColorWidget(
       "Label color: ",
       "#000000",
@@ -2488,12 +2824,28 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz) {
     );
     this.controls.push(this.label_color_widget);
 
+    this.help.push(
+      new HelpWidget(
+        "This controls the color used for the text labels within the matrix "
+      + "(but not the row/column labels)."
+      )
+    );
+
     this.missing_color_widget = new ColorWidget(
       "Missing color: ",
       "#ffffff",
       function () { the_view.draw(); }
     );
     this.controls.push(this.missing_color_widget);
+
+    this.help.push(
+      new HelpWidget(
+        "This controls the color used for the background of cells which have "
+      + "no data. This can happen when using 1-hot vectors for rows and "
+      + "columns if there aren't any (selected, filtered) records that have a "
+      + "certain pair of attribute values."
+      )
+    );
   }
 
   Matrix.prototype = Object.create(View.prototype);

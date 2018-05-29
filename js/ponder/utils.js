@@ -6,6 +6,12 @@ define(["d3"], function (d3) {
   // Tolerable floating point rounding error
   var EPSILON = 1e-12;
 
+  // Cutoff for displaying a few values
+  var A_FEW = 3;
+
+  // Cutoff for values being considered similar (fraction of the smaller)
+  var SIMILAR_FRACTION = 0.1;
+
   // Default number of stops for creating CSS gradient backgrounds
   var DEFAULT_GRADIENT_STOPS = 24;
 
@@ -590,8 +596,38 @@ define(["d3"], function (d3) {
     return results;
   }
 
+  function dominance_summary(frequencies) {
+    let pairs = [];
+    Object.keys(frequencies).forEach(function (k) {
+      pairs.push([k, frequencies[k]]);
+    });
+    if (pairs.length <= A_FEW) {
+      return pairs.map(p => p[0] + '×' + p[1]).join('/');
+    }
+    pairs.sort((a, b) => a[1] - b[1]);
+    var cutoff;
+    for (cutoff = 0; cutoff < pairs.length - 1; ++cutoff) {
+      if (pairs[cutoff][1] >= 2*pairs[cutoff+1][1]) {
+        // > 2x the next item: we dominate
+        break;
+      } else if (
+        pairs[cutoff][1] > (1 + SIMILAR_FRACTION) * pairs[cutoff+1][1]
+      ) {
+        // too large to be similar to the next item, but we don't dominate
+        cutoff = undefined;
+        break;
+      } // else we're similar; continue
+    }
+    if (cutoff < A_FEW) { // undefined won't be
+      dominant = pairs.slice(0, cutoff+1);
+      return dominant.map(p => p[0] + '×' + p[1]).join('/') + ' *';
+    }
+    return '*'; // no way to define dominant values
+  }
+
   return {
     "EPSILON": EPSILON,
+    "A_FEW": A_FEW,
     "posmod": posmod,
     "get_bbox": get_bbox,
     "get_width": get_width,
@@ -611,5 +647,6 @@ define(["d3"], function (d3) {
     "get_approx_text_size": get_approx_text_size,
     "font_size_for": font_size_for,
     "text_match_indices": text_match_indices,
+    "dominance_summary": dominance_summary,
   };
 });

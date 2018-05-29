@@ -170,55 +170,6 @@ function (d3, utils, qt, prp) {
   }
 
   /*
-   * Data transformation functions
-   */
-
-  // TODO: Get rid of this now that we have Histogram?
-  // Given an array-of-values or map-of-values->counts field, creates bars for
-  // a histogram showing the sum of each value. If 'just_tally' is given with a
-  // map field, the map values are ignored and 1 unit is counted for each time
-  // a key appears.
-  function value_sums(items, field, just_tally) {
-    var counts = {};
-    for (var i = 0; i < items.length; ++i) {
-      var it = items[i];
-      var fv = it[field];
-      if (fv != undefined) { // ignore missing fields
-        if (Array.isArray(fv)) {
-          for (var j = 0; j < fv.lenth; ++j) {
-            var val = fv[j];
-            var k = "" + val;
-            if (counts.hasOwnProperty(k)) {
-              counts[k] += 1;
-            } else {
-              counts[k] = 1;
-            }
-          }
-        } else if (typeof fv === 'object') {
-          for (var val in fv) {
-            if (fv.hasOwnProperty(val)) {
-              if (counts.hasOwnProperty(val)) {
-                if (just_tally) {
-                  counts[val] += 1;
-                } else {
-                  counts[val] += fv[val];
-                }
-              } else {
-                if (just_tally) {
-                  counts[val] = 1;
-                } else {
-                  counts[val] = fv[val];
-                }
-              }
-            }
-          }
-        } // else ignore this item
-      }
-    }
-    return counts;
-  }
-
-  /*
    * Drawing functions
    */
 
@@ -375,7 +326,6 @@ function (d3, utils, qt, prp) {
             return "" + labels(items[0]);
           } else {
             var frequencies = {};
-            var winner = undefined;
             for (var i = 0; i < items.length; ++i) {
               var l = "" + labels(items[i]);
               if (frequencies.hasOwnProperty(l)) {
@@ -383,27 +333,8 @@ function (d3, utils, qt, prp) {
               } else {
                 frequencies[l] = 1;
               }
-              if (winner === undefined || frequencies[winner] < frequencies[l]) {
-                winner = l;
-              }
             }
-            var tied = false;
-            var count = 0;
-            for (var k in frequencies) {
-              if (frequencies.hasOwnProperty(k)) {
-                count += 1;
-                if (frequencies[k] == frequencies[winner] && k != winner) {
-                  tied = true;
-                }
-              }
-            }
-            if (tied) {
-              return "*";
-            } else if (count == 1) {
-              return winner;
-            } else {
-              return winner + "*";
-            }
+            return utils.dominance_summary(frequencies);
           }
         }
         element.selectAll("text").exit().remove();
@@ -639,7 +570,7 @@ function (d3, utils, qt, prp) {
     row_labels,
     color_scale,
     missing_color,
-    label_color,
+    label_color
   ) {
     if (color_scale === undefined) {
       color_scale = DEFAULT_COLOR_SCALE;
@@ -755,6 +686,7 @@ function (d3, utils, qt, prp) {
         }
       });
     if (label_color != undefined) {
+      console.log(label_color);
       cellgroup.append("text") // value label inside cell
         .attr("class", "label")
         .attr("x", cw/2)
@@ -762,12 +694,13 @@ function (d3, utils, qt, prp) {
         .attr("font-size", layout.cell_font_size + "px")
         .attr("dominant-baseline", "middle")
         .attr("text-anchor", "middle")
+        .style("fill", label_color)
         .text(display_value);
     }
   }
 
   return {
-    "value_sums": value_sums,
+    "NBSP": NBSP,
     "draw_quadtree": draw_quadtree,
     "draw_histogram": draw_histogram,
     "draw_matrix": draw_matrix,

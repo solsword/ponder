@@ -1,6 +1,6 @@
 define(
-["./utils", "./properties"],
-function (utils, prp) {
+["./utils", "./properties", "./vector"],
+function (utils, prp, v) {
   /*
    * Module variables
    */
@@ -58,6 +58,68 @@ function (utils, prp) {
 
   function get_field(dataset, record, index) {
     return prp.get_value(dataset.fmap, record, index);
+  }
+
+  // Fuses values from a multiple records at a single index into a single
+  // displayable value, according to the type of index used. Numeric fields
+  // return the mean among the given records, and tensor fields similarly
+  // return an average tensor. On the other hand, string fields return a
+  // frequency map from values to counts, and maps fields return a sum-map from
+  // keys to summed-values.
+  function fuse_values(dataset, records, index) {
+    let typ = get_type(dataset, index);
+    if (typ.kind == "number") {
+      let values = records.map(r => get_field(dataset, r, index));
+      return values.reduce((a, b) => a + b, 0) / records.length;
+      // this might be NaN, but that's okay
+    } else if (typ.kind == "tensor") {
+      let tdim = typ.dimensions.reduce((a, b) => a*b, 1)
+      let result = undefined;
+      records.forEach(function (r) {
+        let val = get_field(dataset, r, index);
+        if (result == undefined) {
+          result = val;
+        } else {
+          result = v.add_tensors(result, val);
+        }
+      });
+      if (result != undefined) {
+        v.scale_tensor(result, 1/records.length);
+      }
+      return result;
+
+    } else if (typ.kind == "string") {
+      let vmap = {};
+      records.forEach(function (r) {
+        let val = "" + get_field(dataset, r, index);
+        if (vmap.hasOwnProperty(val)) {
+          vmap[val] += 1;
+        } else {
+          vmap[val] = 1;
+        }
+      });
+      return vmap;
+
+    } else if (typ.kind == "map") {
+      let vmap = {};
+      records.forEach(function (r) {
+        let m = get_field(dataset, r, index);
+        Object.keys(m).forEach(function (k) {
+          let val = m[k];
+          if (val == undefined) {
+            return; // continue
+          } else if (Array.isArray(val) || isNaN(+val)) {
+            val = 1; // some non-numeric object
+          }
+          if (vmap.hasOwnProperty(k)) {
+            vmap[k] += m[k];
+          } else {
+            vmap[k] = m[k];
+          }
+        });
+      });
+      return vmap;
+    }
   }
 
   // Updates the domain(s) under the given index which has gained the given new
@@ -554,7 +616,7 @@ function (utils, prp) {
   // The model is a simple Gaussian.
   //
   // The allowance variable controls how many standard deviations are
-  // considered enough for an item to be an outlier, an defaults to
+  // considered enough for an item to be an outlier, and defaults to
   // DEFAULT_OUTLIER_ALLOWANCE.
   //
   // The count_missing variable defaults to true and controls whether missing
@@ -640,7 +702,7 @@ function (utils, prp) {
       };
     } else if (typ.kind === "tensor") {
       var dims = typ.dimensions;
-      var tdim = dims.reduce((a, b) => a * b);
+      var tdim = dims.reduce((a, b) => a * b, 1);
       function conv_index(idx) {
         var result = [];
         for (let i = dims.length - 1; i >= 0; --i) {
@@ -715,7 +777,7 @@ function (utils, prp) {
   function categorical_transform(dataset, index) {
     var typ = get_type(dataset, index);
     if (typ.kind == "tensor") { // TODO: recursive transforms?
-      var tdim = typ.dimensions.reduce((a, b) => a * b);
+      var tdim = typ.dimensions.reduce((a, b) => a * b, 1);
       var labels = [];
       for (let i = 0; i < tdim; ++i) {
         var seq_idx = prp.rollup_index(typ.dimensions, i);
@@ -789,6 +851,7 @@ function (utils, prp) {
     "get_inner_name": get_inner_name,
     "get_record": get_record,
     "get_field": get_field,
+    "fuse_values": fuse_values,
     "has_field": has_field,
     "add_field": add_field,
     "set_field": set_field,

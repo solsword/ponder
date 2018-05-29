@@ -2,6 +2,34 @@ define(
 [],
 function () {
 
+  // Returns the total dimension of a tensor
+  function tensor_total_dimension(t) {
+    if (!Array.isArray(t)) {
+      return undefined;
+    }
+    let result = 1;
+    while (Array.isArray(t)) {
+      result *= t.length;
+      t = t[0];
+    }
+    return result;
+  }
+
+  // Gets a value from a tensor using a flat index i, which should be between
+  // zero and the total dimension of the tensor minus one.
+  function get_flat(t, i) {
+    if (!Array.isArray(t)) {
+      return undefined;
+    }
+    if (Array.isArray(t[0])) {
+      let subdim = tensor_total_dimension(t[0]);
+      let idx = Math.floor(t / subdim);
+      return get_flat(t[idx], i % subdim);
+    } else {
+      return t[i];
+    }
+  }
+
   function origin(N) { // origin in N dimensions
     var result = [];
     for (let i = 0; i < N; ++i) {
@@ -16,6 +44,19 @@ function () {
       result.push(a[i] + b[i]);
     }
     return result;
+  }
+
+  // Recursively adds two tensors. Doesn't check b's type or dimensions.
+  function add_tensors(t, s) {
+    if (Array.isArray(t)) {
+      let result = [];
+      for (let i = 0; i < t.length; ++i) {
+        result.push(add_tensors(t[i], s[i]));
+      }
+      return result;
+    } else {
+      return t + s;
+    }
   }
 
   function add_into(a, b) {
@@ -49,6 +90,19 @@ function () {
   function scale_by(a, S) {
     for (let i = 0; i < a.length; ++i) {
       a[i] *= S;
+    }
+  }
+
+  // Recursively scales each entry of an arbitrarily-nested tensor.
+  function scale_tensor(t, S) {
+    if (Array.isArray(t)) {
+      let result = [];
+      for (let i = 0; i < t.length; ++t) {
+        result.push(scale_tensor(t[i], S));
+      }
+      return result;
+    } else {
+      return t * S;
     }
   }
 
@@ -120,12 +174,16 @@ function () {
   }
 
   return {
+    "tensor_total_dimension": tensor_total_dimension,
+    "get_flat": get_flat,
     "origin": origin,
     "add": add,
+    "add_tensors": add_tensors,
     "add_into": add_into,
     "sub": sub,
     "sub_from": sub_from,
     "scale_by": scale_by,
+    "scale_tensor": scale_tensor,
     "dot": dot,
     "mag": mag,
     "proj": proj,
