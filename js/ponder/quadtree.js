@@ -126,6 +126,9 @@ define(["./utils"], function (utils) {
     getx, gety,
     resolution_limit
   ) {
+    if (!region_contains(extent, x, y)) {
+      return; // ignore this out-of-bounds point.
+    }
     node.count += 1; // we're adding this value somewhere in here
     if (node.count == 1) { // base case: we're at an empty node
       node.items = [ item ];
@@ -166,18 +169,18 @@ define(["./utils"], function (utils) {
           node.children[oq] = { "count": node.count - 1, "items": node.items };
           delete node.items; // change this node into a children node
           // now insert us into that node or another new one:
-          var tq = quad_index(extent, x, y);
-          if (tq == oq) {
+          var qi = quad_index(extent, x, y);
+          if (qi == oq) {
             add_to_quadrant(
-              node.children[tq],
-              sub_extent(extent, tq),
+              node.children[qi],
+              sub_extent(extent, qi),
               item,
               x, y,
               getx, gety,
               resolution_limit
             );
           } else {
-            node.children[tq] = { "count": 1, "items": [ item ] };
+            node.children[qi] = { "count": 1, "items": [ item ] };
           }
         }
       }
@@ -306,7 +309,8 @@ define(["./utils"], function (utils) {
           }
         }
       }
-    } else { // else base case: find all items w/in region
+    } else if (node.hasOwnProperty("items")) {
+      // else base case: find all items w/in region
       for (var i = 0; i < node.count; ++i) {
         var item = node.items[i];
         var ix = getx(item);
@@ -315,6 +319,8 @@ define(["./utils"], function (utils) {
           results.push(item);
         }
       }
+    } else { // default for an empty tree: return an empty list
+      return [];
     }
     return results;
   }
@@ -477,6 +483,9 @@ define(["./utils"], function (utils) {
   // back on the count divided by the area of a square the size of the
   // resolution limit of the tree.
   function compute_density(tree, node, extent, centroid) {
+    if (node.count == 0) {
+      return 0;
+    }
     var density;
     var w = extent[1][0] - extent[0][0];
     var h = extent[1][1] - extent[0][1];

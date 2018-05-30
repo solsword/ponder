@@ -62,10 +62,11 @@ function (utils, prp, v) {
 
   // Fuses values from a multiple records at a single index into a single
   // displayable value, according to the type of index used. Numeric fields
-  // return the mean among the given records, and tensor fields similarly
-  // return an average tensor. On the other hand, string fields return a
-  // frequency map from values to counts, and maps fields return a sum-map from
-  // keys to summed-values.
+  // return the mean among the given records, and numeric tensor fields
+  // similarly return an average tensor. On the other hand, string fields
+  // return a frequency map from values to counts, and map fields return a
+  // sum-map from keys to summed-values. Non-numeric tensors are treated as
+  // strings and produce a frequency map of unique representations.
   function fuse_values(dataset, records, index) {
     let typ = get_type(dataset, index);
     if (typ.kind == "number") {
@@ -73,20 +74,34 @@ function (utils, prp, v) {
       return values.reduce((a, b) => a + b, 0) / records.length;
       // this might be NaN, but that's okay
     } else if (typ.kind == "tensor") {
-      let tdim = typ.dimensions.reduce((a, b) => a*b, 1)
-      let result = undefined;
-      records.forEach(function (r) {
-        let val = get_field(dataset, r, index);
-        if (result == undefined) {
-          result = val;
-        } else {
-          result = v.add_tensors(result, val);
+      if (typ.value_type.kind == "number") {
+        let tdim = typ.dimensions.reduce((a, b) => a*b, 1)
+        var result = undefined;
+        records.forEach(function (r) {
+          let val = get_field(dataset, r, index);
+          if (result == undefined) {
+            result = val;
+          } else {
+            result = v.add_tensors(result, val);
+          }
+        });
+        if (result != undefined) {
+          console.log("Scale: " + (1/records.length));
+          v.scale_tensor(result, 1/records.length);
         }
-      });
-      if (result != undefined) {
-        v.scale_tensor(result, 1/records.length);
+        return result;
+      } else { // treat as strings
+        let vmap = {};
+        records.forEach(function (r) {
+          let repr = v.repr(v.flatten(get_field(dataset, r, index)));
+          if (vmap.hasOwnProperty(repr)) {
+            vmap[repr] += 1;
+          } else {
+            vmap[repr] = 1;
+          }
+        });
+        return vmap;
       }
-      return result;
 
     } else if (typ.kind == "string") {
       let vmap = {};

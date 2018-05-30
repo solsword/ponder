@@ -124,6 +124,20 @@ a:active {
   stroke: #888;
 }
 
+.dragbox {
+  fill: #ccccff22;
+  stroke: #aad;
+}
+
+.dragbox.inverted {
+  fill: #ffcccc22;
+  stroke: #daa;
+}
+
+.invisible {
+  display: none;
+}
+
 .spaced_inline {
   display: inline-block;
   margin: 0pt 4pt 0pt 4pt;

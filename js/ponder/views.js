@@ -40,6 +40,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   // Minimum margin between help boxes and the edges of the page.
   var HELP_MARGIN = 3;
 
+  // Factor used for zooming with the scroll wheel.
+  var ZOOM_FACTOR = 0.1;
+
   ////////////////
   // BaseWidget //
   ////////////////
@@ -1503,75 +1506,54 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     View.call(this, id, dataset);
     this.show_density = false;
     this.hide_labels = false;
+    this.tool = "zoom";
+    this.drag_start = undefined;
+    this.drag_current = undefined;
+    this.drag_end = undefined;
     this.selected = [];
     this.selection_listeners = [];
     this.separate_outliers = true;
+    this.display_label = undefined;
+    this.size = undefined;
+    this.viewport = { // these are in data-coordinates, not view-coordinates
+      "min_x": undefined,
+      "max_x": undefined,
+      "min_y": undefined,
+      "max_y": undefined,
+    };
 
+    // set up axes and establish default viewport:
     this.set_x_axis(x_index);
     this.set_y_axis(y_index);
-
-    this.display_label = undefined;
+    this.reset_viewport();
 
     var the_view = this;
 
     this.controls.push(
-      new ToggleWidget(
-        "Hide selection count & axis labels",
-        false,
-        function (yes) {
-          the_view.hide_labels = yes;
-          the_view.draw(); // redraw
-        }
-      )
-    );
-
-    this.help.push(
-      new HelpWidget(
-        "Hiding the text at the edges of the graph can help when it overlaps "
-      + "with points that are placed near the edges."
-      )
-    );
-
-    this.controls.push(
-      new ToggleWidget(
-        "Show point approximation (instead of density)",
-        true,
-        function (yes) {
-          the_view.show_density = !yes;
-          the_view.draw(); // redraw
-        }
-      )
-    );
-
-    this.help.push(
-      new HelpWidget(
-        "By default, multiple nearby points are shown as a single point with a "
-      + "density value. If you uncheck this, you can view the raw regions used "
-      + "to compute densities, which is only really useful for very dense data "
-      + "sets. To avoid grouping points, set a smaller resolution value below."
-      )
-    );
-
-    this.controls.push(
       new SelectWidget(
-        "Resolution: ",
-        [2, 4, 8, 16, 32, 64],
-        DEFAULT_RESOLUTION,
+        "Tool: ",
+        [ "zoom", "select" ],
+        "zoom",
         function (value) {
-          the_view.set_resolution(Number.parseInt(value));
-          the_view.rebind();
-          the_view.draw();
+          the_view.set_tool(value);
         }
       )
     );
 
     this.help.push(
       new HelpWidget(
-        "This selector controls the resolution at which points are grouped. "
-      + "Use smaller values to see more data points, and to avoid grouping. "
-      + "The points are drawn at a size of 2 units, so the smallest available "
-      + "resolution is 2. The units are screen units, and are independent of "
-      + "the current graph axis units."
+        "Choose whether to use the mouse to select items, or to zoom in or "
+      + "out. In select mode, the mouse moves the selection cursor, and the "
+      + "scroll wheel changes its size. Click to update the current selection "
+      + "region, which will limit which records are displayed in the right "
+      + "pane (unless 'Select all' is checked in the middle). In zoom mode, "
+      + "drag down to zoom in to a specific region, or drag up to zoom out "
+      + "(such that the current region will fit in the box created after the "
+      + "zoom-out). The scroll wheel can also be used while zooming to zoom in "
+      + "or out of the center of the viewport by a fixed amount. Clicking "
+      + "without dragging in zoom mode will reset the zoom to the default, and "
+      + "scrolling while the mouse is over the x- or y-axis will zoom only "
+      + "that axis."
       )
     );
 
@@ -1616,6 +1598,81 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       new HelpWidget(
         "This controls which field is used to determine the y-coordinate of "
       + "each data point. See the help for the x-axis for more details."
+      )
+    );
+
+    this.controls.push(
+      new TextSelectWidget(
+        "Display: ",
+        function () {
+          return ["count"].concat(ds.index_names(the_view.data));
+        },
+        function () {
+          if (the_view.d_index != undefined) {
+            return ds.get_name(the_view.data, the_view.d_index);
+          } else {
+            return "count";
+          }
+        },
+        function (iname) {
+          if (iname == "count") {
+            the_view.set_display(undefined);
+          } else {
+            the_view.set_display(iname);
+          }
+          the_view.draw();
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "Sets the value to be displayed in the upper-right corner of the graph "
+      + "based on the selected items. The default shows how many items are "
+      + "selected, but a summary of any field can be displayed. When too many "
+      + "items are selected with different values for the chosen field, a '*' "
+      + "will be displayed, but when there are three or fewer distince values "
+      + "among selected items, they will be displayed along with their counts. "
+      + "Additionally, if there are up to three vaules which are similarly "
+      + "frequent and all much more frequent than the next-most-frequent "
+      + "value, these will be displayed along with a '*'. Use the right-hand "
+      + "viewing pane if you need more detailed information about selected "
+      + "records."
+      )
+    );
+
+    this.controls.push(
+      new TextSelectWidget(
+        "Labels: ",
+        function () {
+          return ["none"].concat(ds.index_names(the_view.data));
+        },
+        function () {
+          if (the_view.l_index != undefined) {
+            return ds.get_name(the_view.data, the_view.l_index);
+          } else {
+            return "none";
+          }
+        },
+        function (iname) {
+          if (iname == "none") {
+            the_view.set_labels(undefined);
+          } else {
+            the_view.set_labels(iname);
+          }
+          the_view.draw();
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "Sets the field to be used as the label for each point. Note that when "
+      + "there are many points, labels will overlap and won't really be "
+      + "useful. When multiple grouped points have different label values, if "
+      + "there's one value that comprises a majority that value will be shown "
+      + "folloed by a '*', otherwise just a '*' will be shown for that point. "
+      + "Set this to 'none' to disable labels."
       )
     );
 
@@ -1675,65 +1732,6 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     );
 
     this.controls.push(
-      new TextSelectWidget(
-        "Labels: ",
-        function () {
-          return ["none"].concat(ds.index_names(the_view.data));
-        },
-        function () {
-          if (the_view.l_index != undefined) {
-            return ds.get_name(the_view.data, the_view.l_index);
-          } else {
-            return "none";
-          }
-        },
-        function (iname) {
-          if (iname == "none") {
-            the_view.set_labels(undefined);
-          } else {
-            the_view.set_labels(iname);
-          }
-          the_view.draw();
-        }
-      )
-    );
-
-    this.help.push(
-      new HelpWidget(
-        "Sets the field to be used as the label for each point. Note that when "
-      + "there are many points, labels will overlap and won't really be "
-      + "useful. When multiple grouped points have different label values, if "
-      + "there's one value that comprises a majority that value will be shown "
-      + "folloed by a '*', otherwise just a '*' will be shown for that point. "
-      + "Set this to 'none' to disable labels."
-      )
-    );
-
-    this.controls.push(
-      new TextSelectWidget(
-        "Display: ",
-        function () {
-          return ["count"].concat(ds.index_names(the_view.data));
-        },
-        function () {
-          if (the_view.d_index != undefined) {
-            return ds.get_name(the_view.data, the_view.d_index);
-          } else {
-            return "count";
-          }
-        },
-        function (iname) {
-          if (iname == "count") {
-            the_view.set_display(undefined);
-          } else {
-            the_view.set_display(iname);
-          }
-          the_view.draw();
-        }
-      )
-    );
-
-    this.controls.push(
       new ToggleWidget(
         "Color outliers separately",
         true,
@@ -1777,30 +1775,106 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       + "separate outlier colors is enabled."
       )
     );
+
+    this.controls.push(
+      new ToggleWidget(
+        "Hide axis labels and display text",
+        false,
+        function (yes) {
+          the_view.hide_labels = yes;
+          the_view.draw(); // redraw
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "Hiding the text at the edges of the graph can help when it overlaps "
+      + "with points that are placed near the edges."
+      )
+    );
+
+    this.controls.push(
+      new ToggleWidget(
+        "Show point approximation (instead of density)",
+        true,
+        function (yes) {
+          the_view.show_density = !yes;
+          the_view.draw(); // redraw
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "By default, multiple nearby points are shown as a single point with a "
+      + "density value. If you uncheck this, you can view the raw regions used "
+      + "to compute densities, which is only really useful for very dense data "
+      + "sets. To avoid grouping points, set a smaller resolution value below."
+      )
+    );
+
+    this.controls.push(
+      new SelectWidget(
+        "Resolution: ",
+        [2, 4, 8, 16, 32, 64],
+        DEFAULT_RESOLUTION,
+        function (value) {
+          the_view.set_resolution(Number.parseInt(value));
+          the_view.rebind();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "This selector controls the resolution at which points are grouped. "
+      + "Use smaller values to see more data points, and to avoid grouping. "
+      + "The points are drawn at a size of 2 units, so the smallest available "
+      + "resolution is 2. The units are screen units, and are independent of "
+      + "the current graph axis units."
+      )
+    );
   }
 
   LensView.prototype = Object.create(View.prototype);
   LensView.prototype.constructor = LensView;
 
+  // Updates the current tool. Hides the selection shadow when not in selection
+  // mode.
+  LensView.prototype.set_tool = function(tool) {
+    this.tool = tool;
+    if (tool == "zoom") {
+      if (this.shadow.node != undefined) {
+        this.shadow.node.classed("invisible", true);
+      }
+    } else {
+      if (this.shadow.node != undefined) {
+        this.shadow.node.classed("invisible", false);
+      }
+    }
+
+    // reset & hide the dragbox on tool change no matter what
+    let db = this.dragbox;
+    db.sx = undefined;
+    db.sy = undefined;
+    db.ex = undefined;
+    db.ey = undefined;
+    if (db.node != undefined) {
+      db.node.classed("invisible", true);
+    }
+  }
 
   // Updates the size; called when the frame is (re)bound.
   LensView.prototype.update_size = function(fw, fh) {
-    var xr = this.x_domain[1] - this.x_domain[0];
-    var yr = this.y_domain[1] - this.y_domain[0];
-    if (xr == 0) { xr = 1; }
-    if (yr == 0) { yr = 1; }
+    this.size = [fw, fh];
     this.x_scale = d3.scaleLinear()
       .range([0, fw])
-      .domain([
-          this.x_domain[0] - DOMAIN_PADDING * xr,
-          this.x_domain[1] + DOMAIN_PADDING * xr
-      ]);
+      .domain([this.viewport.min_x, this.viewport.max_x]);
     this.y_scale = d3.scaleLinear()
       .range([fh, 0])
-      .domain([
-        this.y_domain[0] - DOMAIN_PADDING * yr,
-        this.y_domain[1] + DOMAIN_PADDING * yr
-      ]);
+      .domain([this.viewport.min_y, this.viewport.max_y]);
 
     this.view_x = d => this.x_scale(this.raw_x(d));
     this.view_y = d => this.y_scale(this.raw_y(d));
@@ -1819,10 +1893,97 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     );
 
     // set up default lens & shadow:
-    this.lens = { "x": fw/2, "y": fh/2, "r": 20, "node": undefined };
-    this.shadow = { "x": fw/2, "y": fh/2, "r": 20, "node": undefined };
+    this.lens = { "x": 0, "y": fh, "r": 10, "node": undefined };
+    this.shadow = { "x": 0, "y": fh, "r": 10, "node": undefined };
 
+    // set up default dragbox:
+    this.dragbox = {
+      "sx": undefined, "sy": undefined,
+      "ex": undefined, "ey": undefined,
+      "node": undefined
+    };
+
+    // Update selection to include items under default lens
     this.update_selection();
+  }
+
+  // Resets the viewport to encompass the full x and y domains of the current
+  // indices. The x- and y-axes may be reset individually (pass true for each
+  // axis you want to reset). Passing false, false does nothing, and passing no
+  // arguments is the same as passing true, true.
+  LensView.prototype.reset_viewport = function(x, y) {
+    if (x == undefined && y == undefined) {
+      x = true;
+      y = true;
+    }
+    if (x) {
+      let xr = this.x_domain[1] - this.x_domain[0];
+      if (xr == 0) { xr = 1; }
+      this.viewport.min_x = this.x_domain[0] - DOMAIN_PADDING * xr;
+      this.viewport.max_x = this.x_domain[1] + DOMAIN_PADDING * xr
+    }
+    if (y) {
+      let yr = this.y_domain[1] - this.y_domain[0];
+      if (yr == 0) { yr = 1; }
+      this.viewport.min_y = this.y_domain[0] - DOMAIN_PADDING * yr;
+      this.viewport.max_y = this.y_domain[1] + DOMAIN_PADDING * yr
+    }
+    if (this.size) {
+      this.update_size(this.size[0], this.size[1]);
+      this.draw();
+    }
+  }
+
+  // Zooms in (or out, if mag is false) so that either the given x, y, w, h box
+  // becomes the new edges of the viewport, or if zooming out, so that the
+  // current viewport edges become the edges of that box within an expanded
+  // viewport. If the w and h values are left out, then the r_or_x and r_or_y
+  // values are treated as a ratios with respect to the current viewport
+  // width/height, and a box size is calculated based on those ratios (which
+  // should always be between 0 and 1, exclusive). When zooming using only
+  // ratios, the zoom always goes into or out of the center of the viewport.
+  LensView.prototype.zoom = function(mag, r_or_x, r_or_y, w, h) {
+    let x;
+    let y;
+    if (w == undefined) { // ratio-based
+      // scaled width and height:
+      // TODO: Is there some padding to adjust for here?
+      w = r_or_x * this.size[0];
+      h = r_or_y * this.size[1];
+
+      // the x and y that center that box:
+      x = this.size[0]/2 - w/2;
+      y = this.size[1]/2 - h/2;
+    } else {
+      x = r_or_x;
+      y = r_or_y;
+    }
+    if (w == 0 || h == 0) { // ignore this invalid zoom command
+      return;
+    }
+    if (mag) {
+      // TODO: Is there some padding to adjust for here?
+      this.viewport.min_x = this.x_scale.invert(x);
+      this.viewport.max_x = this.x_scale.invert(x + w);
+      this.viewport.min_y = this.y_scale.invert(y + h);
+      this.viewport.max_y = this.y_scale.invert(y);
+    } else {
+      let rw = this.size[0] / w;
+      let rh = this.size[1] / h;
+      let cx = this.x_scale.invert(x + w/2);
+      let cy = this.y_scale.invert(y + h/2);
+      let axis_w = this.viewport.max_x - this.viewport.min_x;
+      let axis_h = this.viewport.max_y - this.viewport.min_y;
+      let new_axw = axis_w * rw;
+      let new_axh = axis_h * rh;
+      this.viewport.min_x = cx - new_axw/2;
+      this.viewport.max_x = cx + new_axw/2;
+      this.viewport.min_y = cy - new_axh/2;
+      this.viewport.max_y = cy + new_axh/2;
+    }
+    // apply viewport changes and redraw
+    this.update_size(this.size[0], this.size[1]);
+    this.draw();
   }
 
   // Draws the given view into its bound frame (see bind_frame). Also sets up
@@ -1905,11 +2066,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
     if (this.hide_labels) { yl.style("display", "none"); }
 
-    // Add the lenses last
-    dplot.append("g")
-      .attr("id", "lens_group");
+    // Add the lenses & dragbox last
+    let tools = dplot.append("g")
+      .attr("id", "tools_group");
 
-    this.lens.node = dplot.select("#lens_group").append("circle")
+    this.lens.node = tools.append("circle")
       .attr("id", this.id + "_lens")
       .attr("class", "lens")
       .attr("cx", this.lens.x)
@@ -1917,13 +2078,22 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       .attr("r", this.lens.r)
       .attr("z-index", "10");
 
-    this.shadow.node = dplot.select("#lens_group").append("circle")
+    this.shadow.node = tools.append("circle")
       .attr("id", this.id + "_shadow")
       .attr("class", "lens_shadow")
       .attr("cx", this.shadow.x)
       .attr("cy", this.shadow.y)
       .attr("r", this.shadow.r)
       .attr("z-index", "10");
+
+    this.dragbox.node = tools.append("rect")
+      .attr("id", this.id + "_dragbox")
+      .attr("class", "dragbox invisible")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", 0)
+      .attr("height", 0)
+      .attr("z-index", "11");
 
     // Lens tracking:
     var svg = this.frame.node();
@@ -1932,29 +2102,97 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     }
     svg = d3.select(svg);
     var the_view = this;
+    svg.on("mousedown touchstart", function () {
+      var e = d3.event;
+      if (e.button != undefined && e.button > 0) {
+        return; // don't trigger for non-primary buttons
+      }
+      var coords = d3.mouse(the_view.frame.node());
+      the_view.drag_start = coords;
+      let db = the_view.dragbox;
+      if (the_view.tool == "zoom") {
+        db.sx = coords[0];
+        db.sy = coords[1];
+        if (db.node != undefined) {
+          db.node.classed("invisible", false);
+        }
+      }
+    });
+
     svg.on("mousemove touchmove", function () {
       var coords = d3.mouse(the_view.frame.node());
+      the_view.drag_current = coords;
 
-      if (the_view.shadow.node != undefined) {
-        the_view.shadow.x = coords[0];
-        the_view.shadow.y = coords[1];
-        the_view.shadow.node.attr("cx", the_view.shadow.x);
-        the_view.shadow.node.attr("cy", the_view.shadow.y);
+      if (the_view.tool == "zoom") {
+        let db = the_view.dragbox;
+        if (db.sx != undefined && db.sy != undefined) {
+          db.ex = coords[0];
+          db.ey = coords[1];
+          if (the_view.dragbox.node != undefined) {
+            db.node.attr("x", Math.min(db.sx, db.ex));
+            db.node.attr("y", Math.min(db.sy, db.ey));
+            db.node.attr("width", Math.abs(db.ex - db.sx));
+            db.node.attr("height", Math.abs(db.ey - db.sy));
+            if (db.ey < db.sy) { // upwards = zoom out
+              db.node.classed("inverted", true);
+            } else {
+              db.node.classed("inverted", false);
+            }
+          }
+        } // else don't update endpoint
+      } else if (the_view.tool == "select") {
+        if (the_view.shadow.node != undefined) {
+          the_view.shadow.x = coords[0];
+          the_view.shadow.y = coords[1];
+          the_view.shadow.node.attr("cx", the_view.shadow.x);
+          the_view.shadow.node.attr("cy", the_view.shadow.y);
+        }
       }
     });
 
     svg.on("click touchend", function () {
-      the_view.lens.x = the_view.shadow.x;
-      the_view.lens.y = the_view.shadow.y;
-      the_view.lens.r = the_view.shadow.r;
+      if (the_view.tool == "zoom") {
+        let db = the_view.dragbox;
+        if (db.sx != undefined && db.sy != undefined) {
+          if (
+            db.ex == undefined
+         || db.ey == undefined
+         || db.ex == db.sx
+         || db.ey == db.sy
+          ) { // zero-width or no-movement: reset view
+            the_view.reset_viewport();
+          } else {
+            // compute start + size
+            let sx = Math.min(db.sx, db.ex);
+            let sy = Math.min(db.sy, db.ey);
+            let bw = Math.abs(db.ex - db.sx);
+            let bh = Math.abs(db.ey - db.sy);
+            // zoom in or out depending on whether box goes up or down
+            the_view.zoom(db.ey > db.sy, sx, sy, bw, bh);
+          }
+        }
+        // unbind start/end values
+        db.sx = undefined;
+        db.ex = undefined;
+        db.sy = undefined;
+        db.ey = undefined;
+        // hide dragbox
+        if (db.node != undefined) {
+          db.node.classed("invisible", true);
+        }
+      } else if (the_view.tool == "select") {
+        the_view.lens.x = the_view.shadow.x;
+        the_view.lens.y = the_view.shadow.y;
+        the_view.lens.r = the_view.shadow.r;
 
-      if (the_view.lens.node != undefined) {
-        // Update the lens
-        the_view.lens.node.attr("cx", the_view.lens.x);
-        the_view.lens.node.attr("cy", the_view.lens.y);
-        the_view.lens.node.attr("r", the_view.lens.r);
+        if (the_view.lens.node != undefined) {
+          // Update the lens
+          the_view.lens.node.attr("cx", the_view.lens.x);
+          the_view.lens.node.attr("cy", the_view.lens.y);
+          the_view.lens.node.attr("r", the_view.lens.r);
 
-        the_view.update_selection();
+          the_view.update_selection();
+        }
       }
     });
 
@@ -1962,26 +2200,48 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       var e = d3.event;
       e.preventDefault();
 
-      if (the_view.shadow.node != undefined) {
-        // convert scroll units:
-        var unit = e.deltaMode;
-        var dx = e.deltaX;
-        var dy = e.deltaY;
+      // convert scroll units:
+      var unit = e.deltaMode;
+      var dx = e.deltaX;
+      var dy = e.deltaY;
 
-        if (unit == 1) {
-          dx *= PIXELS_PER_LINE;
-          dy *= PIXELS_PER_LINE;
-        } else if (unit == 2) {
-          dx *= PIXELS_PER_LINE * LINES_PER_PAGE;
-          dy *= PIXELS_PER_LINE * LINES_PER_PAGE;
-        }
+      if (unit == 1) {
+        dx *= PIXELS_PER_LINE;
+        dy *= PIXELS_PER_LINE;
+      } else if (unit == 2) {
+        dx *= PIXELS_PER_LINE * LINES_PER_PAGE;
+        dy *= PIXELS_PER_LINE * LINES_PER_PAGE;
+      }
 
-        // update shadow radius:
-        the_view.shadow.r *= (1 + 0.01 * dy / SCROLL_FACTOR);
-        if (the_view.shadow.r < MIN_LENS_RADIUS) {
-          the_view.shadow.r = MIN_LENS_RADIUS;
+      if (the_view.tool == "zoom") { // zoom in/out from center of viewport
+        if (dy != 0) { // dx is ignored
+          let lines = dy / PIXELS_PER_LINE;
+          let factor = 1 - ZOOM_FACTOR;
+          let ratio = Math.pow(factor, Math.abs(lines));
+          // Detect hovering over axes:
+          let coords = d3.mouse(the_view.frame.node());
+          let mx = the_view.x_scale.invert(coords[0]);
+          let my = the_view.y_scale.invert(coords[1]);
+          let left = mx < the_view.viewport.min_x;
+          let bottom = my < the_view.viewport.min_y;
+          if (left && !bottom) { // hovering over y-axis
+            the_view.zoom(lines < 0, 1, ratio); // scale y only
+          } else if (bottom && !left) { // hovering over x-axis
+            the_view.zoom(lines < 0, ratio, 1); // scale x only
+          } else { // on graph or in corner
+            the_view.zoom(lines < 0, ratio, ratio);
+          }
         }
-        the_view.shadow.node.attr("r", the_view.shadow.r);
+      } else if (the_view.tool == "select") { // change lens size
+        if (the_view.shadow.node != undefined) {
+
+          // update shadow radius:
+          the_view.shadow.r *= (1 + 0.01 * dy / SCROLL_FACTOR);
+          if (the_view.shadow.r < MIN_LENS_RADIUS) {
+            the_view.shadow.r = MIN_LENS_RADIUS;
+          }
+          the_view.shadow.node.attr("r", the_view.shadow.r);
+        }
       }
     });
   }
@@ -2091,21 +2351,29 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     let dtext = "undefined";
     if (this.d_index == undefined) {
       dtext = this.selected.length + " items selected";
+    } else if (this.selected.length == 0) {
+      dtext = "";
     } else {
       let d_type = ds.get_type(this.data, this.d_index);
       let fval = ds.fuse_values(this.data, this.selected, this.d_index);
-      console.log([d_type.kind, fval]);
       if (d_type.kind == "number") {
-        dtext = "avg " + fval.toPrecision(4);
-      } else if (d_type.kind == "string") {
-        dtext = utils.dominance_summary(fval);
-      } else if (d_type.kind == "tensor") {
+        dtext = fval.toPrecision(4);
+        if (this.selected.length > 1) {
+          dtext = "avg " + dtext;
+        }
+      } else if (d_type.kind == "tensor" && d_type.value_type.kind == "number"){
         let td = v.tensor_total_dimension(fval);
         if (td <= utils.A_FEW) {
+          let flat = v.flatten(fval);
+          console.log(flat);
+          dtext = "[" + flat.map(v => v.toPrecision(3)).join(", ") + "]";
+          if (this.selected.length > 1) {
+            dtext = "avg " + dtext;
+          }
         } else {
           dtext = "<" + td + "-dimensional>";
         }
-      } else if (d_type.kind == "map") {
+      } else { // strings, maps, and non-numeric tensors
         dtext = utils.dominance_summary(fval);
       }
     }
@@ -2132,6 +2400,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     var nx = ds.numerical_transform(this.data, x_index);
     this.x_domain = nx.domain;
     this.raw_x = nx.getter;
+    this.reset_viewport(true, false); // reset the x-axis viewport
   }
 
   // Same as above for the y-axis.
@@ -2145,6 +2414,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     var ny = ds.numerical_transform(this.data, y_index);
     this.y_domain = ny.domain;
     this.raw_y = ny.getter;
+    this.reset_viewport(false, true); // reset the y-axis viewport
   }
 
   ///////////////
@@ -2577,10 +2847,18 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
           }
         }
       }
-    } else if (ft.kind === "tensor") {
-      // TODO: HERE?!
-      console.warn("Unmanageable tensor type");
-      console.warn(ft);
+    } else if (ft.kind === "tensor") { // get repr and treat as string
+      this.bin_names = [];
+      for (let i = 0; i < this.records.length; ++i) {
+        let val = ds.get_field(this.data, this.records[i], this.field);
+        let repr = v.repr(v.flatten(val));
+        if (this.counts.hasOwnProperty(repr)) {
+          this.counts[repr] += 1;
+        } else {
+          this.bin_names.push(repr);
+          this.counts[repr] = 1;
+        }
+      }
     } else if (ft.kind === "map") {
       this.bin_names = [];
       var all_numeric = true;

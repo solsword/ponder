@@ -18,7 +18,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   var THUNK_MS = 75;
 
   // Default margin value (fraction of total frame reserved)
-  var MARGIN = 0.04;
+  var MARGIN = 0.06;
 
   // Max # of values to show during preprocessing
   var MAX_SHOW_VALUES = 6;
@@ -47,7 +47,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
 
   // The lens toggle
   var LENS_TOGGLE = undefined;
-  var IGNORE_SELECTION = false;
+  var IGNORE_SELECTION = true;
 
   // The filter widget
   var FILTER = undefined;
@@ -313,7 +313,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     }
     LENS_TOGGLE = new vw.ToggleWidget(
       "Select all",
-      false,
+      true,
       function (ignore) {
         IGNORE_SELECTION = ignore;
         update_selection(data)

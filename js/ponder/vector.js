@@ -2,6 +2,9 @@ define(
 [],
 function () {
 
+  // Default precision for vector representations:
+  var DEFAULT_REPR_PRECISION = 3;
+
   // Returns the total dimension of a tensor
   function tensor_total_dimension(t) {
     if (!Array.isArray(t)) {
@@ -28,6 +31,16 @@ function () {
     } else {
       return t[i];
     }
+  }
+
+  // Returns a flattened version of the given tensor.
+  function flatten(t) {
+    let td = tensor_total_dimension(t);
+    let result = [];
+    for (let i = 0; i < td; ++i) {
+      result.push(get_flat(t, i));
+    }
+    return result;
   }
 
   function origin(N) { // origin in N dimensions
@@ -173,9 +186,25 @@ function () {
     return result;
   }
 
+  function repr(t, precision) {
+    if (precision == undefined) {
+      precision = DEFAULT_REPR_PRECISION;
+    }
+    if (Array.isArray(t)) {
+      return '[' + t.map(x => repr(x, precision)).join(", ") + ']';
+    } else {
+      if (t.toPrecision) {
+        return t.toPrecision(precision);
+      } else {
+        return "" + t;
+      }
+    }
+  }
+
   return {
     "tensor_total_dimension": tensor_total_dimension,
     "get_flat": get_flat,
+    "flatten": flatten,
     "origin": origin,
     "add": add,
     "add_tensors": add_tensors,
@@ -191,5 +220,6 @@ function () {
     "ldist": ldist,
     "norm": norm,
     "softnorm": softnorm,
+    "repr": repr,
   };
 });
