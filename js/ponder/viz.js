@@ -6,19 +6,22 @@ function (d3, utils, qt, prp) {
    */
 
   // Resolution at which to cut off quadtree recursion for drawing.
-  DEFAULT_MIN_RESOLUTION = undefined;
+  var DEFAULT_MIN_RESOLUTION = undefined;
 
   // Default color scale
-  DEFAULT_COLOR_SCALE = d3.interpolateMagma;
+  var DEFAULT_COLOR_SCALE = d3.interpolateMagma;
 
   // The non-breaking space character
-  NBSP = "\u00A0";
+  var NBSP = "\u00A0";
 
   // The radius of outlier points in a quadtree visualization
-  QT_OUTLIER_RADIUS = 1;
+  var QT_OUTLIER_RADIUS = 1;
 
   // Radius used for quadtree points when points_allowed is set to undefined.
-  QT_POINT_RADIUS = 1.5;
+  var QT_POINT_RADIUS = 1.5;
+
+  // Font size above which we back off a bit for aesthetics
+  var HUGE_FONT_SIZE = 24;
 
   // Computes a table layout with room at the top and left for the given
   // labels. The default padding (surrounding the whole table) is 0.02, while
@@ -164,6 +167,26 @@ function (d3, utils, qt, prp) {
       if (result.cell_font_size == undefined || fs < result.cell_font_size) {
         result.cell_font_size = fs;
       }
+    }
+
+    // scale back excessive font sizes:
+    if (result.cl_font_size >= HUGE_FONT_SIZE) {
+      result.cl_font_size = (
+        HUGE_FONT_SIZE
+      + (result.cl_font_size - HUGE_FONT_SIZE) * 0.6
+      );
+    }
+    if (result.rl_font_size >= HUGE_FONT_SIZE) {
+      result.rl_font_size = (
+        HUGE_FONT_SIZE
+      + (result.rl_font_size - HUGE_FONT_SIZE) * 0.6
+      );
+    }
+    if (result.cell_font_size >= HUGE_FONT_SIZE) {
+      result.cell_font_size = (
+        HUGE_FONT_SIZE
+      + (result.cell_font_size - HUGE_FONT_SIZE) * 0.6
+      );
     }
 
     return result;
@@ -686,7 +709,6 @@ function (d3, utils, qt, prp) {
         }
       });
     if (label_color != undefined) {
-      console.log(label_color);
       cellgroup.append("text") // value label inside cell
         .attr("class", "label")
         .attr("x", cw/2)

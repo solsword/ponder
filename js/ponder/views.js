@@ -1605,17 +1605,17 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       new TextSelectWidget(
         "Display: ",
         function () {
-          return ["count"].concat(ds.index_names(the_view.data));
+          return ["<count>"].concat(ds.index_names(the_view.data));
         },
         function () {
-          if (the_view.d_index != undefined) {
-            return ds.get_name(the_view.data, the_view.d_index);
+          if (the_view.d_index == undefined) {
+            return "<count>";
           } else {
-            return "count";
+            return ds.get_name(the_view.data, the_view.d_index);
           }
         },
         function (iname) {
-          if (iname == "count") {
+          if (iname == "<count>") {
             the_view.set_display(undefined);
           } else {
             the_view.set_display(iname);
@@ -1645,17 +1645,17 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       new TextSelectWidget(
         "Labels: ",
         function () {
-          return ["none"].concat(ds.index_names(the_view.data));
+          return ["<none>"].concat(ds.index_names(the_view.data));
         },
         function () {
-          if (the_view.l_index != undefined) {
-            return ds.get_name(the_view.data, the_view.l_index);
+          if (the_view.l_index == undefined) {
+            return "<none>";
           } else {
-            return "none";
+            return ds.get_name(the_view.data, the_view.l_index);
           }
         },
         function (iname) {
-          if (iname == "none") {
+          if (iname == "<none>") {
             the_view.set_labels(undefined);
           } else {
             the_view.set_labels(iname);
@@ -1680,17 +1680,17 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       new TextSelectWidget(
         "Color by: ",
         function () {
-          return ["density (default)"].concat(ds.index_names(the_view.data));
+          return ["<density>"].concat(ds.index_names(the_view.data));
         },
         function () {
           if (the_view.c_index != undefined) {
             return ds.get_name(the_view.data, the_view.c_index);
           } else {
-            return "density (default)";
+            return "<density>";
           }
         },
         function (iname) {
-          if (iname === "density (default)") {
+          if (iname === "<density>") {
             the_view.set_color_property(undefined);
           } else {
             the_view.set_color_property(iname);
@@ -2365,7 +2365,6 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
         let td = v.tensor_total_dimension(fval);
         if (td <= utils.A_FEW) {
           let flat = v.flatten(fval);
-          console.log(flat);
           dtext = "[" + flat.map(v => v.toPrecision(3)).join(", ") + "]";
           if (this.selected.length > 1) {
             dtext = "avg " + dtext;
@@ -2972,6 +2971,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   function Matrix(id, dataset, records, cols_field, rows_field, vals_field) {
     View.call(this, id, dataset);
     this.records = records || this.data.records;
+    this.just_count = false;
 
     this.set_cols(cols_field);
     this.set_rows(rows_field);
@@ -2984,10 +2984,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     this.controls.push(
       new TextSelectWidget(
         "Rows: ",
-        function () { return ["none"].concat(ds.index_names(the_view.data)); },
-        function () { return ds.get_name(the_view.data, the_view.rows_field); },
+        function () { return ["<none>"].concat(ds.index_names(the_view.data));},
+        function () {
+          if (the_view.rows_field == undefined) {
+            return "<none>";
+          } else {
+            return ds.get_name(the_view.data, the_view.rows_field);
+          }
+        },
         function (iname) {
-          if (iname == "none") {
+          if (iname == "<none>") {
             the_view.set_rows(undefined);
           } else {
             the_view.set_rows(iname);
@@ -3026,10 +3032,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     this.controls.push(
       new TextSelectWidget(
         "Columns: ",
-        function () { return ["none"].concat(ds.index_names(the_view.data)); },
-        function () { return ds.get_name(the_view.data, the_view.cols_field); },
+        function () { return ["<none>"].concat(ds.index_names(the_view.data));},
+        function () {
+          if (the_view.cols_field == undefined) {
+            return "<none>";
+          } else {
+            return ds.get_name(the_view.data, the_view.cols_field);
+          }
+        },
         function (iname) {
-          if (iname == "none") {
+          if (iname == "<none>") {
             the_view.set_cols(undefined);
           } else {
             the_view.set_cols(iname);
@@ -3051,10 +3063,16 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     this.controls.push(
       new TextSelectWidget(
         "Value: ",
-        function () { return ["none"].concat(ds.index_names(the_view.data)); },
-        function () { return ds.get_name(the_view.data, the_view.vals_field); },
+        function () { return ["<none>"].concat(ds.index_names(the_view.data));},
+        function () {
+          if (the_view.vals_field == undefined) {
+            return "<none>";
+          } else {
+            return ds.get_name(the_view.data, the_view.vals_field);
+          }
+        },
         function (iname) {
-          if (iname == "none") {
+          if (iname == "<none>") {
             the_view.set_value(undefined);
           } else {
             the_view.set_value(iname);
@@ -3073,6 +3091,27 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       + "when both rows and columns are 1-hot vectors (i.e., numeric or string "
       + "fields). Set this to 'none' to just use row and column vectors in the "
       + "matrix without multiplying in any other values."
+      )
+    );
+
+    this.controls.push(
+      new ToggleWidget(
+        "Count records (instead of averaging values)",
+        this.just_count,
+        function (yes) {
+          the_view.just_count = yes;
+          the_view.update();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "This toggle causes the matrix to just display the number of records "
+      + "that have non-missing values for each cell, instead of multiplying "
+      + "row/column/value numbers and computing averages. When this is active, "
+      + "the 'Value' field is ignored entirely."
       )
     );
 
@@ -3203,7 +3242,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
     for (let i = 0; i < this.records.length; ++i) {
       var r = this.records[i];
-      var val = this.get_val(r);
+      if (!this.just_count) {
+        var val = this.get_val(r);
+      }
 
       for (let col = 0; col < this.n_cols; ++col) {
         if (this.counts[col] == undefined) {
@@ -3220,34 +3261,47 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
           if (rv == undefined) {
             continue;
           }
-          var cell_val = cv * rv * val
-          if (
-            this.full_domain[0] == undefined
-         || cell_val < this.full_domain[0]
-          ) {
-            this.full_domain[0] = cell_val;
-          }
-          if (
-            this.full_domain[1] == undefined
-         || cell_val > this.full_domain[1]
-          ) {
-            this.full_domain[1] = cell_val;
-          }
-          var nc;
-          if (this.counts[col][row] == undefined) {
-            nc = 1;
-            this.counts[col][row] = nc;
-            this.matrix[col][row] = cell_val;
-            this.stdevs[col][row] = 0;
-          } else {
-            nc = this.counts[col][row] + 1;
-            this.counts[col][row] = nc;
-            var om = this.matrix[col][row];
-            var delta = cell_val - om;
-            var nm = om + delta / nc
-            var d2 = cell_val - nm; 
-            this.matrix[col][row] = nm;
-            this.stdevs[col][row] += delta * d2;
+          if (this.just_count) {
+            var nc;
+            if (this.counts[col][row] != undefined) {
+              nc = this.counts[col][row] + 1;
+              this.counts[col][row] = nc;
+              this.matrix[col][row] = nc;
+            } else {
+              nc = 1;
+              this.counts[col][row] = nc;
+              this.matrix[col][row] = nc;
+            }
+          } else { // actually worry about values
+            var cell_val = cv * rv * val
+            if (
+              this.full_domain[0] == undefined
+              || cell_val < this.full_domain[0]
+            ) {
+              this.full_domain[0] = cell_val;
+            }
+            if (
+              this.full_domain[1] == undefined
+              || cell_val > this.full_domain[1]
+            ) {
+              this.full_domain[1] = cell_val;
+            }
+            var nc;
+            if (this.counts[col][row] == undefined) {
+              nc = 1;
+              this.counts[col][row] = nc;
+              this.matrix[col][row] = cell_val;
+              this.stdevs[col][row] = 0;
+            } else {
+              nc = this.counts[col][row] + 1;
+              this.counts[col][row] = nc;
+              var om = this.matrix[col][row];
+              var delta = cell_val - om;
+              var nm = om + delta / nc
+              var d2 = cell_val - nm; 
+              this.matrix[col][row] = nm;
+              this.stdevs[col][row] += delta * d2;
+            }
           }
         }
       }
@@ -3257,8 +3311,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     this.empty_rows = new Set(Array.from({length: this.n_rows}, (x,i) => i));
     this.empty_cols = new Set(Array.from({length: this.n_cols}, (x,i) => i));
 
-    // polish standard deviations, fill in missing counts as zeros, and find
-    // empty rows/columns
+    // polish standard deviations or fill in domain, fill in missing counts as
+    // zeros, and find empty rows/columns
     for (let c = 0; c < this.n_cols; ++c) {
       for (let r = 0; r < this.n_rows; ++r) {
         if (this.counts[c] == undefined) {
@@ -3271,6 +3325,15 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
           this.counts[c][r] = 0;
           this.matrix[c][r] = NaN;
           this.stdevs[c][r] = NaN;
+          if (this.just_count) { // update domains and set matrix if counting
+            this.matrix[c][r] = 0;
+            if (this.full_domain[0] == undefined || this.full_domain[0] > 0) {
+              this.full_domain[0] = 0;
+            }
+            if (this.full_domain[1] == undefined || this.full_domain[1] < 0) {
+              this.full_domain[1] = 0;
+            }
+          }
         } else {
           this.empty_cols.delete(c);
           this.empty_rows.delete(r);
@@ -3279,6 +3342,14 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
             this.stdevs[c][r] = Math.sqrt(sv / (cv - 1));
           } else {
             this.stdevs[c][r] = 0;
+          }
+          if (this.just_count) { // update domains if counting
+            if (this.full_domain[0] == undefined || this.full_domain[0] > cv) {
+              this.full_domain[0] = cv;
+            }
+            if (this.full_domain[1] == undefined || this.full_domain[1] < cv) {
+              this.full_domain[1] = cv;
+            }
           }
         }
       }
