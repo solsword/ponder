@@ -7,9 +7,10 @@ define(
   "./transforms",
   "./quadtree",
   "./viz",
-  "./properties"
+  "./properties",
+  "./json"
 ],
-function (d3, utils, ds, vw, tf, qt, viz, prp) {
+function (d3, utils, ds, vw, tf, qt, viz, prp, json) {
   /*
    * Module variables:
    */
@@ -39,6 +40,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
   // Available transforms:
   var AVAILABLE_TRANSFORMS = {
     "reify": tf.Reify,
+    "combine": tf.Combine,
     "circularize": tf.Circularize,
     "differentiate": tf.Differentiate,
     // TODO: Add this back in once implemented!
@@ -114,11 +116,11 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
       fr.onload = function (e) {
         var file_text = e.target.result;
         try {
-          var json = JSON.parse(file_text);
+          var jobj = json.parse(file_text);
         } catch (error) {
-          var json = { "error": true };
+          var jobj = { "error": true };
         }
-        populate_data(json);
+        populate_data(jobj);
       };
       fr.readAsText(first);
     }
@@ -464,14 +466,23 @@ function (d3, utils, ds, vw, tf, qt, viz, prp) {
     np.select("#loading_message").style("display", "block");
 
     window.setTimeout(function () {
+      console.log("Data loaded; processing...");
+      var jobj;
       try {
-        var json = JSON.parse(raw_data);
+        jobj = json.parse(raw_data);
+        console.log("Detected JSON input...");
       } catch (error) {
+        console.error(error);
+        console.log("Falling back to CSV/TSV input...");
         var sep = ds.guess_sep(raw_data);
-        var json = ds.gulp_csv(raw_data, sep);
+        console.log("Guessed separator is '" + sep + "'...");
+        jobj = ds.gulp_csv(raw_data, sep);
       }
 
-      var dataset = ds.preprocess_data(json);
+      console.log("Found " + jobj.records.length + " records.");
+      console.log("Fields are:");
+      console.log(jobj.fields);
+      var dataset = ds.preprocess_data(jobj);
 
       var ntb = np.select("table>tbody");
       ntb.selectAll("tr").exit().remove();

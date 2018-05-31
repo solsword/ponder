@@ -6,6 +6,7 @@ function (d3, utils, ds, vw, v) {
     vw.BaseWidget.call(this);
     this.data = dataset;
     this.callback = callback;
+    this.result_type = result_type || { "kind": "number" };
     this.set_index(default_index);
     var the_tf = this;
     this.selector = new vw.TextSelectWidget(
@@ -27,7 +28,6 @@ function (d3, utils, ds, vw, v) {
         the_tf.trigger_callback();
       }
     );
-    this.result_type = result_type || { "kind": "number" };
   }
 
   BaseTransform.prototype = Object.create(vw.BaseWidget.prototype);
@@ -46,7 +46,7 @@ function (d3, utils, ds, vw, v) {
   }
 
   BaseTransform.prototype.result_subindex = function () {
-    return this.index.join("").replace(/[.:]/g, "→");
+    return this.get_name_substitute(this.data, this.index);
   }
 
   // set the index
@@ -237,7 +237,6 @@ function (d3, utils, ds, vw, v) {
   }
 
   Circularize.prototype.remove = function() {
-    this.help.remove();
     Object.getPrototypeOf(Circularize.prototype).remove.call(this);
   }
 
@@ -376,7 +375,6 @@ function (d3, utils, ds, vw, v) {
     if (this.first_index_filters) { this.first_index_filters.remove(); }
     if (this.second_label) { this.second_label.remove(); }
     if (this.second_index_filters) { this.second_index_filters.remove(); }
-    this.help.remove();
     Object.getPrototypeOf(Differentiate.prototype).remove.call(this);
   }
 
@@ -422,12 +420,127 @@ function (d3, utils, ds, vw, v) {
 
   Differentiate.prototype.result_subindex = function () {
     return (
-      this.index.join("").replace(/[.:]/g, "→")
+      this.get_name_substitute(this.data, this.index)
     + "("
     + this.first_index_filters.config_string()
     + "⇒"
     + this.second_index_filters.config_string()
     + ")"
+    );
+  }
+
+
+  // Object to manage a combine operation
+  // Combine adds new field to the dataset which combines values from one field
+  // across all records that share values in a second field.
+  // TODO: Allow grouping by multiple fields
+  // TODO: Allow specifying (multiple?) weight indices
+  function Combine(dataset, callback, default_index) {
+    BaseTransform.call(
+      this,
+      dataset,
+      callback,
+      default_index,
+      undefined // will be filled in by set_index
+    );
+    var the_tf = this;
+    this.set_group_by();
+    this.across = new vw.TextSelectWidget(
+      "Group by: ",
+      ds.all_indices(this.data).map(idx => ds.get_name(the_tf.data, idx)),
+      function () { return ds.get_name(the_tf.data, the_tf.group_by); },
+      function (iname) {
+        the_tf.set_group_by(iname);
+      }
+    );
+    this.help = new vw.HelpWidget(
+      "This transform adds a field to the dataset that combines values from "
+    + "the target field across records that have the same value for the "
+    + "'group by' field. For numbers, the mean is used, while text fields "
+    + "generate a map of value-counts. Tensors and maps fuse their individual "
+    + "sub-fields recursively."
+    );
+  }
+
+  Combine.prototype = Object.create(BaseTransform.prototype);
+  Combine.prototype.constructor = Combine;
+
+  // Static applicability check
+  Combine.applicable_to = function (dataset, index) { return true; }
+
+  Combine.prototype.set_index = function (index) {
+    Object.getPrototypeOf(Combine.prototype).set_index.call(this, index);
+    this.result_type = ds.fused_type(this.data, this.index);
+  }
+
+  // Put controls in place
+  Combine.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      Combine.prototype
+    ).put_controls.call(this, node, insert_before);
+    // add label with help
+    this.node.insert("span", ".transform_apply_button")
+      .attr("class", "bold label")
+      .text("Combine ");
+    this.help.put_controls(this.node, ".transform_apply_button");
+    this.node.insert("br", ".transform_apply_button");
+    // add 'group by' control
+    this.across.put_controls(this.node, ".transform_apply_button");
+  }
+
+  Combine.prototype.remove = function () {
+    this.across.remove();
+    Object.getPrototypeOf(Combine.prototype).remove.call(this);
+  }
+
+  Combine.prototype.set_index = function (index) {
+    Object.getPrototypeOf(Combine.prototype).set_index.call(this, index);
+    this.stale = true;
+  }
+
+  Combine.prototype.set_group_by = function (index) {
+    if (typeof index == "string") { index = ds.lookup_index(this.data, index); }
+    this.group_by = index || ds.nth_of_kind(this.data, undefined, 0);
+    this.group_values = {};
+    this.stale = true;
+  }
+
+  Combine.prototype.compute_group_values = function () {
+    var the_tf = this;
+    // build an index map
+    this.grouped_records = {}
+    this.data.records.forEach(function (r) {
+      let sv = "" + ds.get_field(the_tf.data, r, the_tf.group_by);
+      if (the_tf.grouped_records.hasOwnProperty(sv)) {
+        the_tf.grouped_records[sv].push(r);
+      } else {
+        the_tf.grouped_records[sv] = [ r ];
+      }
+    });
+    // compute values for each group
+    this.group_values = {};
+    for (let k of Object.keys(this.grouped_records)) {
+      let records = this.grouped_records[k];
+      this.group_values[k] = ds.fuse_values(this.data, records, this.index);
+    }
+    console.log(this.group_values);
+    this.stale = false;
+  }
+
+  Combine.prototype.value_for = function (record) {
+    let sv = "" + ds.get_field(this.data, record, this.group_by);
+    if (this.stale) {
+      this.compute_group_values();
+    }
+
+    return this.group_values[sv]; // might be undefined; that's okay
+  }
+
+  Combine.prototype.result_subindex = function () {
+    return (
+      ds.get_name_substitute(this.data, this.index)
+    + "_by_"
+    + ds.get_name_substitute(this.data, this.group_by)
     );
   }
 
@@ -478,6 +591,7 @@ function (d3, utils, ds, vw, v) {
     "Reify": Reify,
     "Circularize": Circularize,
     "Differentiate": Differentiate,
+    "Combine": Combine,
     "PCA": PCA,
   };
 });

@@ -52,6 +52,16 @@ function (utils, prp, v) {
     }
   }
 
+  // Gets a canonical name for an index that's been modified so that it can be
+  // used as part of the name for another index.
+  function get_name_substitute(dataset, index) {
+    let name = get_name(dataset, index);
+    if (name[0] == '.' || name[0] == ':') {
+      name = name.slice(1);
+    }
+    return name.replace(/[.:]/g, "→");
+  }
+
   function get_record(dataset, nth) {
     return dataset.records[nth];
   }
@@ -61,49 +71,18 @@ function (utils, prp, v) {
   }
 
   // Fuses values from a multiple records at a single index into a single
-  // displayable value, according to the type of index used. Numeric fields
-  // return the mean among the given records, and numeric tensor fields
-  // similarly return an average tensor. On the other hand, string fields
-  // return a frequency map from values to counts, and map fields return a
-  // sum-map from keys to summed-values. Non-numeric tensors are treated as
-  // strings and produce a frequency map of unique representations.
+  // value, according to the type of index used. Numeric fields return the mean
+  // among the given records, while string fields return a frequency map from
+  // values to counts. Tensor and map fields recursively fuse their individual
+  // indices/keys.
   function fuse_values(dataset, records, index) {
     let typ = get_type(dataset, index);
-    if (typ.kind == "number") {
+    if (typ.kind == "number") { // compute mean
       let values = records.map(r => get_field(dataset, r, index));
       return values.reduce((a, b) => a + b, 0) / records.length;
       // this might be NaN, but that's okay
-    } else if (typ.kind == "tensor") {
-      if (typ.value_type.kind == "number") {
-        let tdim = typ.dimensions.reduce((a, b) => a*b, 1)
-        var result = undefined;
-        records.forEach(function (r) {
-          let val = get_field(dataset, r, index);
-          if (result == undefined) {
-            result = val;
-          } else {
-            result = v.add_tensors(result, val);
-          }
-        });
-        if (result != undefined) {
-          console.log("Scale: " + (1/records.length));
-          v.scale_tensor(result, 1/records.length);
-        }
-        return result;
-      } else { // treat as strings
-        let vmap = {};
-        records.forEach(function (r) {
-          let repr = v.repr(v.flatten(get_field(dataset, r, index)));
-          if (vmap.hasOwnProperty(repr)) {
-            vmap[repr] += 1;
-          } else {
-            vmap[repr] = 1;
-          }
-        });
-        return vmap;
-      }
 
-    } else if (typ.kind == "string") {
+    } else if (typ.kind == "string") { // compute count-map
       let vmap = {};
       records.forEach(function (r) {
         let val = "" + get_field(dataset, r, index);
@@ -115,25 +94,81 @@ function (utils, prp, v) {
       });
       return vmap;
 
-    } else if (typ.kind == "map") {
-      let vmap = {};
-      records.forEach(function (r) {
-        let m = get_field(dataset, r, index);
-        Object.keys(m).forEach(function (k) {
-          let val = m[k];
-          if (val == undefined) {
-            return; // continue
-          } else if (Array.isArray(val) || isNaN(+val)) {
-            val = 1; // some non-numeric object
-          }
-          if (vmap.hasOwnProperty(k)) {
-            vmap[k] += m[k];
-          } else {
-            vmap[k] = m[k];
-          }
-        });
+    } else if (typ.kind == "tensor") { // recurse
+      let fused = [];
+      let si = prp.sub_indices(index, typ);
+      for (let i = 0; i < si.length; ++i) {
+        fused.push(fuse_values(dataset, records, si[i]));
+      }
+      return fused;
+
+    } else if (typ.kind == "map") { // recurse
+      let fused = {};
+      let si = prp.sub_indices(index, typ);
+      for (let i = 0; i < si.length; ++i) {
+        let sub = si[i];
+        let k = sub.slice(sub.length - 1)[0];
+        fused[k] = fuse_values(dataset, records, sub);
+      }
+      return fused;
+    }
+  }
+
+  // Returns the type value for a fusion of values from the given index. Note
+  // that this may have to scan the entire dataset to determine possible keys
+  // for fused string indices.
+  function fused_type(dataset, index) {
+    let typ = get_type(dataset, index);
+    if (typ.kind == "number") {
+      return { "kind": "number" };
+    } else if (typ.kind == "string") {
+      let keys = new Set();
+      dataset.records.forEach(function (r) {
+        keys.add(get_field(dataset, r, index));
       });
-      return vmap;
+      let subtypes = {};
+      keys.forEach(function (key) {
+        subtypes[key] = { "kind": "number" };
+      });
+      return {
+        "kind": "map",
+        "subtypes": subtypes
+      }
+    } else if (typ.kind == "tensor") {
+      let fused = [];
+      let vt = { "kind": "undefined" };
+      let si = prp.sub_indices(index, typ);
+      for (let i = 0; i < si.length; ++i) {
+        ft = fused_type(dataset, si[i]);
+        fused.push(ft);
+        if (ft.kind == "tensor") {
+          vt = prp.combined_type(vt, ft.value_type);
+        } else {
+          vt = prp.combined_type(vt, ft);
+        }
+      }
+      return {
+        "kind": "tensor",
+        "dimensions": typ.dimensions,
+        "value_type": vt,
+        "subtypes": fused
+      };
+    } else if (typ.kind == "map") {
+      let fused = {};
+      let si = prp.sub_indices(index, typ);
+      for (let i = 0; i < si.length; ++i) {
+        let sub = si[i];
+        let k = sub.slice(sub.length - 1)[0];
+        fused[k] = fused_type(dataset, sub);
+      }
+      return {
+        "kind": "map",
+        "subtypes": fused
+      };
+    } else {
+      console.warn("Unexpected fusion target type for field '" + index + "'.");
+      console.warn(typ);
+      return { "kind": "undefined" };
     }
   }
 
@@ -403,7 +438,7 @@ function (utils, prp, v) {
     return "\n";
    }
 
-  // Transforms a string containing the data from a CSV file into a JSON array
+  // Transforms a string containing the data from a CSV file into a JSON object
   // suitable for passing into the preprocess_data function. Sep indicates the
   // separator character, which defaults to ',' (it must be a single
   // character). Entries that can be are converted to numbers, and blanks are
@@ -458,13 +493,18 @@ function (utils, prp, v) {
     fv = process_csv_field(string);
     row.push(fv);
 
-    return rows;
+    let fields = rows[0];
+    let records = rows.slice(1);
+
+    return {
+      "fields": fields,
+      "records": records,
+    };
   }
 
-  // Takes in data as either an array of records (including a one-row header
-  // for field names) or a partially-complete data object with at least
-  // 'fields' and 'records' defined. Returns a completed data object with the
-  // following fields:
+  // Takes in a partially-complete data object with at least 'fields' and
+  // 'records' defined. Returns a completed data object with the following
+  // fields:
   //
   //  aliases
   //    A mappping from index strings to aliases for those indices.
@@ -489,17 +529,10 @@ function (utils, prp, v) {
   //
   function preprocess_data(data) {
     var fields, records, aliases, glosses;
-    if (Array.isArray(data)) { // flat array of data: read fields from header
-      fields = data[0];
-      records = data.slice(1);
-      aliases = {};
-      glosses = {};
-    } else {
-      fields = data.fields;
-      records = data.records;
-      aliases = data.aliases;
-      glosses = data.glosses;
-    }
+    fields = data.fields;
+    records = data.records;
+    aliases = data.aliases || {};
+    glosses = data.glosses || {};
 
     var types;
     if (data.hasOwnProperty("types")) {
@@ -864,9 +897,11 @@ function (utils, prp, v) {
     "get_name": get_name,
     "get_short_name": get_short_name,
     "get_inner_name": get_inner_name,
+    "get_name_substitute": get_name_substitute,
     "get_record": get_record,
     "get_field": get_field,
     "fuse_values": fuse_values,
+    "fused_type": fused_type,
     "has_field": has_field,
     "add_field": add_field,
     "set_field": set_field,

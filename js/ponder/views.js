@@ -2972,6 +2972,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     View.call(this, id, dataset);
     this.records = records || this.data.records;
     this.just_count = false;
+    this.color_full_range = false;
 
     this.set_cols(cols_field);
     this.set_rows(rows_field);
@@ -3108,10 +3109,30 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
     this.help.push(
       new HelpWidget(
-        "This toggle causes the matrix to just display the number of records "
-      + "that have non-missing values for each cell, instead of multiplying "
+        "Causes the matrix to just display the number of records that have "
+      + "non-missing values for each cell, instead of multiplying "
       + "row/column/value numbers and computing averages. When this is active, "
       + "the 'Value' field is ignored entirely."
+      )
+    );
+
+    this.controls.push(
+      new ToggleWidget(
+        "Color using full range (instead of range of averages)",
+        this.color_full_range,
+        function (yes) {
+          the_view.color_full_range = yes;
+          the_view.update();
+          the_view.draw();
+        }
+      )
+    );
+
+    this.help.push(
+      new HelpWidget(
+        "Causes colors to be determined based on the full range of values from "
+      + "individual records, instead of from the range of averages actually "
+      + "displayed in the table."
       )
     );
 
@@ -3126,11 +3147,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
     this.help.push(
       new HelpWidget(
-        "This sets the color scale used to color each matrix cell. Although "
-      + "each cell holds an average value (as detailed above) the color scale "
-      + "is stretched between the minimum and maximum observed values for any "
-      + "single record in any cell of the matrix. This means that the full "
-      + "range will usually not be used."
+        "This sets the color scale used to color each matrix cell. Normally, "
+      + "the endpoints of the scale are mapped to the minimum and maximum "
+      + "non-missing values in the table, but see the toggle above."
       )
     );
 
@@ -3307,6 +3326,8 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       }
     }
 
+    this.avg_domain = [undefined, undefined];
+
     // everything might be empty:
     this.empty_rows = new Set(Array.from({length: this.n_rows}, (x,i) => i));
     this.empty_cols = new Set(Array.from({length: this.n_cols}, (x,i) => i));
@@ -3321,7 +3342,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
           this.stdevs[c] = [];
         }
         var cv = this.counts[c][r];
-        if (cv == undefined) {
+        if (cv == undefined) { // no records contributed here
           this.counts[c][r] = 0;
           this.matrix[c][r] = NaN;
           this.stdevs[c][r] = NaN;
@@ -3334,7 +3355,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
               this.full_domain[1] = 0;
             }
           }
-        } else {
+        } else { // there's a value here
           this.empty_cols.delete(c);
           this.empty_rows.delete(r);
           if (cv > 1) {
@@ -3343,12 +3364,21 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
           } else {
             this.stdevs[c][r] = 0;
           }
-          if (this.just_count) { // update domains if counting
-            if (this.full_domain[0] == undefined || this.full_domain[0] > cv) {
-              this.full_domain[0] = cv;
+          // update average domain
+          if (this.just_count) {
+            if (this.avg_domain[0] == undefined || this.avg_domain[0] > cv) {
+              this.avg_domain[0] = cv;
             }
-            if (this.full_domain[1] == undefined || this.full_domain[1] < cv) {
-              this.full_domain[1] = cv;
+            if (this.avg_domain[1] == undefined || this.avg_domain[1] < cv) {
+              this.avg_domain[1] = cv;
+            }
+          } else {
+            let val = this.matrix[c][r];
+            if (this.avg_domain[0] == undefined || this.avg_domain[0] > val) {
+              this.avg_domain[0] = val;
+            }
+            if (this.avg_domain[1] == undefined || this.avg_domain[1] < val) {
+              this.avg_domain[1] = val;
             }
           }
         }
@@ -3381,6 +3411,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       }
     }
 
+    let domain = this.avg_domain;
+    if (!this.just_count && this.color_full_range) {
+      domain = this.full_domain;
+    }
+
     viz.draw_matrix(
       this.frame,
       reduced_matrix,
@@ -3388,7 +3423,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       this.counts,
       this.stdevs,
       */
-      this.full_domain,
+      domain,
       reduced_col_labels,
       reduced_row_labels,
       this.color_scale_widget.get_gradient(),

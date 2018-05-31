@@ -465,6 +465,22 @@ define(["d3", "./utils"], function (d3, utils) {
     return options;
   }
 
+  // Returns an array containing all indices exactly one-step below the given
+  // index (which should have the given type).
+  function sub_indices(index, type) {
+    options = [];
+    if (type.kind == "tensor") {
+      for (let i = 0; i < type.dimensions[0]; ++i) {
+        options.push(index.concat([i]));
+      }
+    } else if (type.kind == "map") {
+      for (let k in Object.keys(type.subtypes)) {
+        options.push(index.concat([k]));
+      }
+    }
+    return options;
+  }
+
   // Returns an array of all indices of a dictionary of properties (such as
   // that returned by assess_properties). Each possible index is paired with a
   // domain value if one is available, or undefined.
@@ -574,6 +590,7 @@ define(["d3", "./utils"], function (d3, utils) {
     "index__string": index__string,
     "string__index": string__index,
     "property_indices": property_indices,
+    "sub_indices": sub_indices,
     "all_indices": all_indices,
     "assess_properties": assess_properties,
     "assess_domains": assess_domains,
