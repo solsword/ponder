@@ -46,7 +46,7 @@ function (d3, utils, ds, vw, v) {
   }
 
   BaseTransform.prototype.result_subindex = function () {
-    return this.get_name_substitute(this.data, this.index);
+    return ds.get_name_substitute(this.data, this.index);
   }
 
   // set the index
@@ -383,6 +383,7 @@ function (d3, utils, ds, vw, v) {
     this.first_records = this.first_index_filters.apply_filter(
       this.data.records
     );
+    if (this.first_records.length == 0) { return; }
     this.start_vectors = this.first_records.map(r => this.vt.getter(r));
     this.start_locus = this.start_vectors[0].slice();
     for (let i = 1; i < this.start_vectors.length; ++i) {
@@ -400,6 +401,7 @@ function (d3, utils, ds, vw, v) {
     this.second_records = this.second_index_filters.apply_filter(
       this.data.records
     );
+    if (this.second_records.length == 0) { return; }
     this.end_vectors = this.second_records.map(r => this.vt.getter(r));
     this.end_locus = this.end_vectors[0].slice();
     for (let i = 1; i < this.end_vectors.length; ++i) {
@@ -420,7 +422,7 @@ function (d3, utils, ds, vw, v) {
 
   Differentiate.prototype.result_subindex = function () {
     return (
-      this.get_name_substitute(this.data, this.index)
+      ds.get_name_substitute(this.data, this.index)
     + "("
     + this.first_index_filters.config_string()
     + "⇒"

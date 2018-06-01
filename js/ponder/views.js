@@ -53,7 +53,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   }
 
   BaseWidget.prototype.put_controls = function (node, insert_before) {
-    if (node != this.node && this.node != undefined) {
+    if (node != this.node && node != undefined && this.node != undefined) {
       this.remove();
     }
     if (this.node == undefined) {
@@ -1487,6 +1487,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
   // Controls for multiple filters that can be added or removed. The callback
   // will be called (without arguments) after every parameter change.
+  // TODO: Avoid locking up the page when the default select target index has
+  // too many values to create a categorical map of in a reasonable amount of
+  // time.
   function MultiFilterControls(dataset, callback, label) {
     BaseWidget.call(this);
     this.data = dataset;
