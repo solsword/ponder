@@ -474,7 +474,7 @@ define(["d3", "./utils"], function (d3, utils) {
         options.push(index.concat([i]));
       }
     } else if (type.kind == "map") {
-      for (let k in Object.keys(type.subtypes)) {
+      for (let k of Object.keys(type.subtypes)) {
         options.push(index.concat([k]));
       }
     }

@@ -53,7 +53,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   }
 
   BaseWidget.prototype.put_controls = function (node, insert_before) {
+    if (node != this.node && this.node != undefined) {
+      this.remove();
+    }
     if (this.node == undefined) {
+      if (node == undefined) { return false; } // we have nowhere to go
       if (node.classed("controls_row") || node.classed("controls_span")) {
         if (insert_before) {
           this.node = node.insert(
@@ -76,6 +80,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     } else {
       this.node.selectAll("*").remove();
     }
+    return true; // placed successfully
   }
 
   BaseWidget.prototype.remove = function () {
@@ -113,9 +118,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   HelpWidget.prototype.constructor = HelpWidget;
 
   HelpWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      HelpWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        HelpWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; };
     var the_widget = this;
     var text;
     if (typeof this.text === "function") {
@@ -169,6 +176,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
           the_widget.popup.style("right", (HELP_MARGIN - scroll_x) + "px");
         }
       });
+    return true;
   }
 
   //////////////////
@@ -190,9 +198,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   ButtonWidget.prototype.constructor = ButtonWidget;
 
   ButtonWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      ButtonWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        ButtonWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false };
     var the_widget = this;
     var ltext;
     if (typeof this.label === "function") {
@@ -206,6 +216,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       .on("click touchend", function () {
         the_widget.trigger_callback();
       });
+    return true;
   }
 
   //////////////////
@@ -230,9 +241,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   ToggleWidget.prototype.constructor = ToggleWidget;
 
   ToggleWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      ToggleWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        ToggleWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     var the_widget = this;
     var select = this.node.append("input")
       .attr("type", "checkbox")
@@ -251,6 +264,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     this.node.append("span")
       .attr("class", "label")
       .text(ltext);
+    return true;
   }
 
   //////////////////
@@ -277,9 +291,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   SelectWidget.prototype.constructor = SelectWidget;
 
   SelectWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      SelectWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        SelectWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     var ltext;
     if (typeof this.label === "function") {
       ltext = this.label(this);
@@ -315,6 +331,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     select.selectAll("option")
       .filter(d => d == dopt)
       .attr("selected", true);
+    return true;
   }
 
   //////////////////////
@@ -403,9 +420,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   }
 
   TextSelectWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      TextSelectWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        TextSelectWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     var the_widget = this;
     var ltext;
     if (typeof this.label === "function") {
@@ -543,6 +562,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
             });
         }
       });
+    return true;
   }
 
   /////////////////
@@ -571,9 +591,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
   // Adds the widget to a node.
   ColorWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      ColorWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        ColorWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     this.node.text(this.label);
     // custom flat color picker
     var the_widget = this;
@@ -585,6 +607,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       the_widget.set_color(this.value);
       the_widget.trigger_callback(this.value);
     });
+    return true;
   }
 
   //////////////////////
@@ -734,9 +757,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   }
 
   ColorScaleWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      ColorScaleWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        ColorScaleWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     this.node.text("Color scale: ");
     // custom option
     var cs_select = this.node.append("select");
@@ -854,6 +879,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       cs_demo.style("background", the_widget.get_css_gradient());
       the_widget.trigger_callback();
     });
+    return true;
   }
 
   ///////////////////////
@@ -885,9 +911,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   MultiselectWidget.prototype.constructor = MultiselectWidget;
 
   MultiselectWidget.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      MultiselectWidget.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        MultiselectWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     if (this.node == undefined) {
       this.node = node.append("div").attr("class", "controls_row");
     } else {
@@ -936,7 +964,158 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
         });
         the_widget.trigger_callback(values);
       });
+    return true;
   }
+
+  /////////////////////
+  // SetSelectWidget //
+  /////////////////////
+
+  // A widget that allows selecting a subset of items from a list. The callback
+  // will be called with a Set of selected values whenever the selection
+  // changes. The default is no items selected.
+  function SetSelectWidget(label, items, callback) {
+    BaseWidget.call(this);
+    this.label = label;
+    this.selected = new Set();
+    if (typeof items === "function") {
+      this.items = items();
+    } else {
+      this.items = items;
+    }
+    var the_controls = this;
+    this.callback = callback;
+  }
+
+  SetSelectWidget.prototype = Object.create(BaseWidget.prototype);
+  SetSelectWidget.prototype.constructor = SetSelectWidget;
+
+  SetSelectWidget.prototype.select = function (item) {
+    this.selected.add(item);
+    this.trigger_callback(this.selected);
+  }
+
+  SetSelectWidget.prototype.deselect = function (item) {
+    this.selected.delete(item);
+    this.trigger_callback(this.selected);
+  }
+
+  SetSelectWidget.prototype.refresh_values = function () {
+    this.items_div.selectAll("*").remove();
+
+    var the_controls = this;
+    if (this.items.length <= LOTS_OF_VALUES_THRESHOLD) {
+      this.selectors_div = this.items_div.append("div");
+      this.selectors_div.attr("class", "scrolling");
+      for (let item of this.items) {
+        this.selectors_div.append("input")
+          .attr("type", "checkbox")
+          .attr("checked", the_controls.selected.has(item) ? true : null)
+          .on("change", function () {
+            if (this.checked) {
+              the_controls.select(item);
+            } else {
+              the_controls.deselect(item);
+            }
+          });
+
+        // label
+        this.selectors_div.append("span").text(" " + item);
+        this.selectors_div.append("br");
+      }
+    } else { // too many values to use checkboxes
+      this.selectors_div = this.items_div.append("div");
+      this.selectors_div.attr("class", "selected_values scrolling");
+
+      for (let item of this.items) {
+        if (the_controls.selected.has(item)) {
+          let match_item = this.selectors_div.append("span");
+          match_item
+            .attr("class", "match_item")
+            .append("a")
+              .attr("class", "red_button button")
+              .text("×")
+              .on("click touchend", function () {
+                the_controls.deselect(item);
+                match_item.remove();
+              })
+          match_item.append("span").text(item + " ");
+          match_item.append("br");
+        }
+      }
+
+      if (this.add_selector) { this.add_selector.remove(); }
+
+      var unsel = [];
+      for (let item of this.items) {
+        if (!this.selected.has(item)) {
+          unsel.push(item);
+        }
+      }
+
+      this.add_selector = new TextSelectWidget(
+        "+ ", // add a value
+        unsel, // unselected items
+        undefined, // no default value
+        function (selected) {
+          if (!the_controls.selected.has(selected)) {
+            the_controls.select(selected);
+            the_controls.refresh_values();
+          }
+        }, // callback
+        undefined, // no alternate labels
+        true // always blank the input on select
+      );
+      this.add_selector.put_controls(this.items_div);
+    }
+  }
+
+  SetSelectWidget.prototype.put_controls = function (
+    node,
+    insert_before
+  ) {
+    if (
+      !Object.getPrototypeOf(
+        SetSelectWidget.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
+    var the_controls = this;
+
+    // initial text:
+    this.node.append("span")
+      .attr("class", "label")
+      .text(this.label + " (");
+
+    this.node.append("a").text("all")
+      .on("click touchend", function () {
+        for (let item of the_controls.items) {
+          the_controls.selected.add(item);
+        }
+        the_controls.trigger_callback(the_controls.selected);
+        the_controls.refresh_values();
+      });
+
+    this.node.append("span").attr("class", "label").text("/");
+
+    this.node.append("a").text("none")
+      .on("click touchend", function () {
+        the_controls.selected = new Set();
+        the_controls.trigger_callback(the_controls.selected);
+        the_controls.refresh_values();
+      });
+
+    this.node.append("span").attr("class", "label").text(")");
+
+    // bit of padding
+    this.node.append("span").text(" ")
+
+    this.items_div = this.node.append("div");
+
+    // comparator select
+    this.refresh_values();
+    return true;
+  }
+
 
   ///////////////////////////////
   // ComparisonFilter Controls //
@@ -1015,9 +1194,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     node,
     insert_before
   ) {
-    Object.getPrototypeOf(
-      ComparisonFilterControls.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        ComparisonFilterControls.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     var the_controls = this;
 
     // toggle checkbox:
@@ -1062,6 +1243,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       .on("change", function () {
         the_controls.set_value(utils.get_text_value(this));
       });
+    return true;
   }
 
   ComparisonFilterControls.prototype.apply_filter = function (records) {
@@ -1223,9 +1405,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     node,
     insert_before
   ) {
-    Object.getPrototypeOf(
-      ValueSetFilterControls.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        ValueSetFilterControls.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     var the_controls = this;
 
     // toggle checkbox:
@@ -1267,6 +1451,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
 
     // comparator select
     this.refresh_values();
+    return true;
   }
 
   ValueSetFilterControls.prototype.apply_filter = function (records) {
@@ -1344,9 +1529,11 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   }
 
   MultiFilterControls.prototype.put_controls = function (node, insert_before) {
-    Object.getPrototypeOf(
-      MultiFilterControls.prototype
-    ).put_controls.call(this, node, insert_before);
+    if (
+      !Object.getPrototypeOf(
+        MultiFilterControls.prototype
+      ).put_controls.call(this, node, insert_before)
+    ) { return false; }
     let ltext;
     if (typeof this.label === "function") {
       ltext = this.label();
@@ -1394,6 +1581,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
         the_controls.add_filter(utils.get_selected_value(fts.node()));
       }
     );
+    return true;
   }
 
   MultiFilterControls.prototype.remove = function () {
@@ -1461,8 +1649,14 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
   // put our controls somewhere
   View.prototype.put_controls = function(node, insert_before) {
     if (node != undefined) {
+      if (this.controls_node != undefined) {
+        this.remove_controls();
+      }
       this.controls_node = node;
     } else {
+      if (this.controls_node == undefined) {
+        return false; // nowhere to go
+      }
       node = this.controls_node;
     }
     for (let i = 0; i < this.controls.length; ++i) {
@@ -1473,6 +1667,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
         this.help[i].put_controls(this.controls[i].node);
       }
     }
+    return true;
   }
 
   View.prototype.remove_controls = function () {
@@ -2816,7 +3011,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     } else if (ft.kind === "tensor" && ft.value_type.kind === "number") {
       // tensor of numbers
       this.bin_names = [];
-      var tdim = ft.dimensions.reduce((a, b) => a * b);
+      var tdim = ft.dimensions.reduce((a, b) => a * b, 1);
       for (let j = 0; j < tdim; ++j) {
         seq_idx = prp.rollup_index(ft.dimensions, j);
         this.bin_names.push(ds.get_inner_name(this.data, this.field, seq_idx));
@@ -2830,7 +3025,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
             this.records[i],
             full_idx
           );
-          var key = ds.get_name(this.data, full_idx);
+          var key = this.bin_names[j];
           if (this.flags.force_counts) {
             if (this.counts.hasOwnProperty(key)) {
               this.counts[key] += 1;
@@ -2897,6 +3092,9 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
       }
     } else {
       // Don't know how to make a histogram out of that...
+      console.warn("Bad data type for histogram.");
+      console.warn(this.field);
+      console.warn(ft);
       this.bin_names = [];
       this.counts = undefined;
     }
@@ -3445,6 +3643,7 @@ function (d3, d3sc, utils, qt, ds, prp, fl, viz, v) {
     "TextSelectWidget": TextSelectWidget,
     "ColorScaleWidget": ColorScaleWidget,
     "MultiselectWidget": MultiselectWidget,
+    "SetSelectWidget": SetSelectWidget,
     "ComparisonFilterControls": ComparisonFilterControls,
     "ValueSetFilterControls": ValueSetFilterControls,
     "MultiFilterControls": MultiFilterControls,

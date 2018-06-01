@@ -119,7 +119,10 @@ function (utils, prp, v) {
   // for fused string indices.
   function fused_type(dataset, index) {
     let typ = get_type(dataset, index);
-    if (typ.kind == "number") {
+    if (typ == undefined) {
+      console.warn("Unknown index '" + index + "' in fused_type.");
+      return { "kind": "undefined" };
+    } else if (typ.kind == "number") {
       return { "kind": "number" };
     } else if (typ.kind == "string") {
       let keys = new Set();

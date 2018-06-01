@@ -445,20 +445,19 @@ function (d3, utils, ds, vw, v) {
     );
     var the_tf = this;
     this.set_group_by();
-    this.across = new vw.TextSelectWidget(
-      "Group by: ",
+    this.across = new vw.SetSelectWidget(
+      "Group by ",
       ds.all_indices(this.data).map(idx => ds.get_name(the_tf.data, idx)),
-      function () { return ds.get_name(the_tf.data, the_tf.group_by); },
-      function (iname) {
-        the_tf.set_group_by(iname);
+      function (selected) {
+        the_tf.set_group_by(selected);
       }
     );
     this.help = new vw.HelpWidget(
       "This transform adds a field to the dataset that combines values from "
-    + "the target field across records that have the same value for the "
-    + "'group by' field. For numbers, the mean is used, while text fields "
-    + "generate a map of value-counts. Tensors and maps fuse their individual "
-    + "sub-fields recursively."
+    + "the target field across records that have the same value for each of "
+    + "the given 'group by' field(s). For numbers, the mean is used, while "
+    + "text fields generate a map of value-counts. Tensors and maps fuse their "
+    + "individual sub-fields recursively."
     );
   }
 
@@ -471,6 +470,7 @@ function (d3, utils, ds, vw, v) {
   Combine.prototype.set_index = function (index) {
     Object.getPrototypeOf(Combine.prototype).set_index.call(this, index);
     this.result_type = ds.fused_type(this.data, this.index);
+    this.stale = true;
   }
 
   // Put controls in place
@@ -493,16 +493,26 @@ function (d3, utils, ds, vw, v) {
     Object.getPrototypeOf(Combine.prototype).remove.call(this);
   }
 
-  Combine.prototype.set_index = function (index) {
-    Object.getPrototypeOf(Combine.prototype).set_index.call(this, index);
+  Combine.prototype.set_group_by = function (selected) {
+    if (selected == undefined) {
+      this.group_by = [];
+    } else {
+      let indices = [];
+      for (let str of selected) {
+        indices.push(ds.lookup_index(this.data, str));
+      }
+      this.group_by = indices;
+    }
+    this.group_values = {};
     this.stale = true;
   }
 
-  Combine.prototype.set_group_by = function (index) {
-    if (typeof index == "string") { index = ds.lookup_index(this.data, index); }
-    this.group_by = index || ds.nth_of_kind(this.data, undefined, 0);
-    this.group_values = {};
-    this.stale = true;
+  Combine.prototype.key_for = function (r) {
+    let key = "";
+    for (let idx of this.group_by) {
+      key += "`" + ds.get_field(this.data, r, idx);
+    }
+    return key;
   }
 
   Combine.prototype.compute_group_values = function () {
@@ -510,11 +520,11 @@ function (d3, utils, ds, vw, v) {
     // build an index map
     this.grouped_records = {}
     this.data.records.forEach(function (r) {
-      let sv = "" + ds.get_field(the_tf.data, r, the_tf.group_by);
-      if (the_tf.grouped_records.hasOwnProperty(sv)) {
-        the_tf.grouped_records[sv].push(r);
+      let key = the_tf.key_for(r);
+      if (the_tf.grouped_records.hasOwnProperty(key)) {
+        the_tf.grouped_records[key].push(r);
       } else {
-        the_tf.grouped_records[sv] = [ r ];
+        the_tf.grouped_records[key] = [ r ];
       }
     });
     // compute values for each group
@@ -523,24 +533,23 @@ function (d3, utils, ds, vw, v) {
       let records = this.grouped_records[k];
       this.group_values[k] = ds.fuse_values(this.data, records, this.index);
     }
-    console.log(this.group_values);
     this.stale = false;
   }
 
   Combine.prototype.value_for = function (record) {
-    let sv = "" + ds.get_field(this.data, record, this.group_by);
+    let key = this.key_for(record);
     if (this.stale) {
       this.compute_group_values();
     }
 
-    return this.group_values[sv]; // might be undefined; that's okay
+    return this.group_values[key]; // might be undefined; that's okay
   }
 
   Combine.prototype.result_subindex = function () {
     return (
       ds.get_name_substitute(this.data, this.index)
     + "_by_"
-    + ds.get_name_substitute(this.data, this.group_by)
+    + this.group_by.map(idx => ds.get_name_substitute(this.data, idx)).join(';')
     );
   }
 
