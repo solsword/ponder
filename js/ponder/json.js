@@ -26,7 +26,7 @@ define([], function () {
     }
   }
 
-  ParseState.prototype.error = function(m) {
+  ParseState.prototype.throwError = function(m) {
     this.error = m;
     throw {
       name: "SyntaxError",
@@ -44,7 +44,7 @@ define([], function () {
 
   ParseState.prototype.check = function (c) {
     if (c !== this.ch) {
-      error("Expected '" + c + "' instead of '" + this.ch + "'");
+      this.throwError("Expected '" + c + "' instead of '" + this.ch + "'");
     }
     this.next();
   }
@@ -128,7 +128,7 @@ define([], function () {
         }
       }
     }
-    this.error("Bad string");
+    this.throwError("Bad string");
   }
 
   ParseState.prototype.white = function () { // Skip whitespace.
@@ -174,7 +174,7 @@ define([], function () {
       this.check('y');
       return Infinity;
     }
-    this.error("Unexpected '" + this.ch + "'");
+    this.throwError("Unexpected '" + this.ch + "'");
   }
 
   ParseState.prototype.array = function () {
@@ -197,7 +197,7 @@ define([], function () {
         this.white();
       }
     }
-    this.error("Bad array");
+    this.throwError("Bad array");
   }
 
   ParseState.prototype.object = function () {
@@ -214,7 +214,7 @@ define([], function () {
         this.white();
         this.check(':');
         if (Object.hasOwnProperty.call(object, key)) {
-          this.error('Duplicate key "' + key + '"');
+          this.throwError('Duplicate key "' + key + '"');
         }
         object[key] = this.value();
         this.white();
@@ -226,7 +226,7 @@ define([], function () {
         this.white();
       }
     }
-    this.error("Bad object");
+    this.throwError("Bad object");
   }
 
   ParseState.prototype.value = function () {
@@ -268,7 +268,10 @@ define([], function () {
     result = ps.value();
     ps.white();
     if (ps.ch) {
-      error("Syntax error");
+      throw {
+        name: "SyntaxError",
+        message: "Leftover input.",
+      };
     }
     if (typeof reviver === "function") {
       return walk({'': result}, '', reviver);

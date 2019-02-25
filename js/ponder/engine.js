@@ -117,7 +117,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp, json) {
         var file_text = e.target.result;
         try {
           var jobj = json.parse(file_text);
-        } catch (error) {
+        } catch (e) {
           var jobj = { "error": true };
         }
         populate_data(jobj);
@@ -468,21 +468,23 @@ function (d3, utils, ds, vw, tf, qt, viz, prp, json) {
     window.setTimeout(function () {
       console.log("Data loaded; processing...");
       var jobj;
+      let from_csv = false;
       try {
         jobj = json.parse(raw_data);
         console.log("Detected JSON input...");
-      } catch (error) {
-        console.error(error);
+      } catch (e) {
+        console.warn(e);
         console.log("Falling back to CSV/TSV input...");
         var sep = ds.guess_sep(raw_data);
         console.log("Guessed separator is '" + sep + "'...");
         jobj = ds.gulp_csv(raw_data, sep);
+        from_csv = true;
       }
 
       console.log("Found " + jobj.records.length + " records.");
       console.log("Fields are:");
       console.log(jobj.fields);
-      var dataset = ds.preprocess_data(jobj);
+      var dataset = ds.preprocess_data(jobj, from_csv);
 
       var ntb = np.select("table>tbody");
       ntb.selectAll("tr").exit().remove();

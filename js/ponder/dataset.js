@@ -399,7 +399,7 @@ function (utils, prp, v) {
     // check if it's quoted and unquote if it is
     var quoted = false;
     if (fv[0] == '"') {
-      fv = utils.unqote(fv)
+      fv = utils.unquote(fv);
       quoted = true;
     }
 
@@ -505,8 +505,78 @@ function (utils, prp, v) {
     };
   }
 
+  // Takes an array of record objects (themselves arrays of field values) and
+  // looks for columns containing strings that contain comma-, colon-, or
+  // semicolon-separated values. When it finds such a column, it transforms
+  // entries in that column into either Arrays of numbers (if the separated
+  // strings can all be parsed as numbers) or maps from string values to 0 (for
+  // missing) or 1 (for present).
+  function split_string_records(records) {
+    splittable = {};
+    for (let row of records) {
+      for (let col = 0; col < row.length; ++col) {
+        let val = row[col];
+        if (typeof val === "string") {
+          if (/[,;:]/.exec(val)) {
+            let vals = val.split(/[,;:]/);
+            let allnum = true;
+            for (let subval of vals) {
+              let numeric;
+              if (subval == '') {
+                numeric = undefined;
+              } else {
+                numeric = +subval;
+                if (Number.isNaN(numeric)) {
+                  allnum = false;
+                  break;
+                }
+              }
+            }
+            if (allnum && !splittable.hasOwnProperty(col)) {
+              splittable[col] = 'num'
+            } else {
+              if (!splittable.hasOwnProperty(col) || splittable[col] == 'num') {
+                splittable[col] = {};
+              }
+              for (let v of vals) {
+                splittable[col][v] = 1;
+              }
+            }
+          }
+        }
+      }
+    }
+    let fresh = [];
+    for (let row of records) {
+      let frow = [];
+      fresh.push(frow);
+      for (let col = 0; col < row.length; ++col) {
+        if (splittable[col] == 'num') {
+          let vals = row[col].split(/[,;:]/);
+          frow[col] = vals.map(x => +x);
+        } else if (splittable[col]) {
+          let vals = row[col].split(/[,;:]/);
+          console.log(vals,splittable[col]);
+          frow[col] = {};
+          for (let key of Object.keys(splittable[col])) {
+            frow[col][key] = 0;
+          }
+          for (let val of vals) {
+            frow[col][val] = 1;
+          }
+        } else {
+          frow.push(row[col]);
+        }
+      }
+    }
+    return fresh;
+  }
+
   // Takes in a partially-complete data object with at least 'fields' and
-  // 'records' defined. Returns a completed data object with the following
+  // 'records' defined. If split_strings is given as true, looks for strings
+  // that are really comma-, colon- or semicolon-separated lists and makes them
+  // into maps from string values to 1 or 0, or into tensors of numbers if they
+  // contain numbers. Returns a completed data object with the following
   // fields:
   //
   //  aliases
@@ -530,12 +600,16 @@ function (utils, prp, v) {
   //    An array of records, each of which is an array of objects. The entries
   //    in each record correspond to the field names.
   //
-  function preprocess_data(data) {
+  function preprocess_data(data, split_strings) {
     var fields, records, aliases, glosses;
     fields = data.fields;
     records = data.records;
     aliases = data.aliases || {};
     glosses = data.glosses || {};
+
+    if (split_strings) {
+      records = split_string_records(data.records);
+    }
 
     var types;
     if (data.hasOwnProperty("types")) {
