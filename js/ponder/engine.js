@@ -41,6 +41,7 @@ function (d3, utils, ds, vw, tf, qt, viz, prp, json) {
   var AVAILABLE_TRANSFORMS = {
     "reify": tf.Reify,
     "combine": tf.Combine,
+    "group": tf.Group,
     "circularize": tf.Circularize,
     "differentiate": tf.Differentiate,
     // TODO: Add this back in once implemented!

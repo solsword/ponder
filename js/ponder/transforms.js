@@ -1,6 +1,6 @@
 define(
-["d3", "./utils", "./dataset", "./views", "./vector"],
-function (d3, utils, ds, vw, v) {
+["d3", "./utils", "./dataset", "./properties", "./views", "./vector"],
+function (d3, utils, ds, prp, vw, v) {
 
   function BaseTransform(dataset, callback, default_index, result_type) {
     vw.BaseWidget.call(this);
@@ -555,6 +555,96 @@ function (d3, utils, ds, vw, v) {
     );
   }
 
+  // Object to manage a group operation
+  // Group adds a new vector field to the dataset which combines values from
+  // one or more other fields.
+  function Group(dataset, callback, default_index) {
+    BaseTransform.call(
+      this,
+      dataset,
+      callback,
+      undefined,
+      undefined // will be filled in by set_index
+    );
+    var the_tf = this;
+    this.set_group();
+    this.targets = new vw.SetSelectWidget(
+      "Group fields ",
+      ds.all_indices(this.data).map(idx => ds.get_name(the_tf.data, idx)),
+      function (selected) {
+        the_tf.set_group(selected);
+      }
+    );
+    this.help = new vw.HelpWidget(
+      "This transform adds a field to the dataset that combines values from "
+    + "several other fields into a single vector field."
+    );
+  }
+
+  Group.prototype = Object.create(BaseTransform.prototype);
+  Group.prototype.constructor = Group;
+
+  // Static applicability check
+  Group.applicable_to = function (dataset, index) { return true; }
+
+  Group.prototype.set_index = function (index) {
+    this.applicable = [];
+    return;
+  }
+
+  // Put controls in place
+  Group.prototype.put_controls = function (node, insert_before) {
+    Object.getPrototypeOf(
+      Group.prototype
+    ).put_controls.call(this, node, insert_before);
+    this.selector.remove(); // get rid of index selector
+    // add label with help
+    this.node.insert("span", ".transform_apply_button")
+      .attr("class", "bold label")
+      .text("Group ");
+    this.help.put_controls(this.node, ".transform_apply_button");
+    this.node.insert("br", ".transform_apply_button");
+    // add 'group by' control
+    this.targets.put_controls(this.node, ".transform_apply_button");
+  }
+
+  Group.prototype.remove = function () {
+    this.targets.remove();
+    Object.getPrototypeOf(Group.prototype).remove.call(this);
+  }
+
+  Group.prototype.set_group = function (selected) {
+    if (selected == undefined) {
+      this.group_by = [];
+      this.result_type = { "kind": "undefined" };
+    } else {
+      let indices = [];
+      let subtypes = [];
+      for (let str of selected) {
+        let idx = ds.lookup_index(this.data, str);
+        indices.push(idx);
+        subtypes.push(ds.get_type(this.data, idx));
+      }
+      this.group_by = indices;
+      this.result_type = prp.array_type(subtypes);
+    }
+  }
+
+  Group.prototype.value_for = function (record) {
+    let value = [];
+    for (let idx of this.group_by) {
+      value.push(ds.get_field(this.data, record, idx));
+    }
+    return value;
+  }
+
+  Group.prototype.result_subindex = function () {
+    return this.group_by.map(
+      idx => ds.get_name_substitute(this.data, idx)
+    ).join(';');
+  }
+
+
 
   // Object to manage a PCA operation
   function PCA(dataset, callback) {
@@ -603,6 +693,7 @@ function (d3, utils, ds, vw, v) {
     "Circularize": Circularize,
     "Differentiate": Differentiate,
     "Combine": Combine,
+    "Group": Group,
     "PCA": PCA,
   };
 });

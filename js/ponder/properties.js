@@ -83,6 +83,36 @@ define(["d3", "./utils"], function (d3, utils) {
     return seq_idx.reverse();
   }
 
+  // Takes an Array of type objects, and returns a type object for a tensor
+  // with those subtypes.
+  function array_type(subtypes) {
+    let dimension = subtypes.length;
+    var joint_subtype = { "kind": "undefined" };
+    if (subtypes.length > 0) {
+      joint_subtype = subtypes[0];
+    }
+    for (var i = 1; i < dimension; ++i) {
+      joint_subtype = combined_type(joint_subtype, subtypes[i]);
+    }
+
+    // merge tensor subtype dimensions to flatten tensor types:
+    if (joint_subtype.kind === "tensor") {
+      return {
+        "kind": "tensor",
+        "value_type": joint_subtype.value_type,
+        "subtypes": subtypes,
+        "dimensions": [dimension].concat(joint_subtype.dimensions)
+      }
+    } else { // or just return 1D tensor:
+      return {
+        "kind": "tensor",
+        "value_type": joint_subtype,
+        "subtypes": subtypes,
+        "dimensions": [ dimension ],
+      };
+    }
+  }
+
   // Decides the type of a field given an example value. Types are objects with
   // the following keys:
   //
@@ -117,30 +147,7 @@ define(["d3", "./utils"], function (d3, utils) {
       for (var i = 0; i < dimension; ++i) {
         subtypes.push(assess_type(value[i]));
       }
-      var joint_subtype = { "kind": "undefined" };
-      if (subtypes.length > 0) {
-        joint_subtype = subtypes[0];
-      }
-      for (var i = 1; i < dimension; ++i) {
-        joint_subtype = combined_type(joint_subtype, subtypes[i]);
-      }
-
-      // merge tensor subtype dimensions to flatten tensor types:
-      if (joint_subtype.kind === "tensor") {
-        return {
-          "kind": "tensor",
-          "value_type": joint_subtype.value_type,
-          "subtypes": subtypes,
-          "dimensions": [dimension].concat(joint_subtype.dimensions)
-        }
-      } else { // or just return 1D tensor:
-        return {
-          "kind": "tensor",
-          "value_type": joint_subtype,
-          "subtypes": subtypes,
-          "dimensions": [ dimension ],
-        };
-      }
+      return array_type(subtypes);
     } else if (typeof value === "object") {
       if (value === null) {
         return { "kind": "null" };
@@ -584,6 +591,7 @@ define(["d3", "./utils"], function (d3, utils) {
     "get_value": get_value,
     "put_value": put_value,
     "get_type": get_type,
+    "array_type": array_type,
     "assess_type": assess_type,
     "combined_type": combined_type,
     "get_domain": get_domain,
