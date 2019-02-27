@@ -1,0 +1,5 @@
+18591c18591,18592
+<   var matrixLib = getCjsExportFromNamespace(src$1);
+---
+>   //var matrixLib = getCjsExportFromNamespace(src$1);
+>   var matrixLib = src$1;

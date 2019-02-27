@@ -1,18 +1,12 @@
-define(
-[
-  "./unit",
-  "./test/utils",
-  "./test/quadtree",
-  "./test/properties",
-  "./test/transforms"
-],
-function (unit, utt, qtt, prt, tft) {
-  function run() {
-    unit.run_suites("utils", utt.suites);
-    unit.run_suites("quadtree", qtt.suites);
-    unit.run_suites("properties", prt.suites);
-    unit.run_suites("transforms", tft.suites);
-  }
+import * as unit from "./unit.js";
+import * as utt from "./test/utils.js";
+import * as qtt from "./test/quadtree.js";
+import * as prt from "./test/properties.js";
+import * as tft from "./test/transforms.js";
 
-  return { "run": run };
-});
+export function run() {
+  unit.run_suites("utils", utt.suites);
+  unit.run_suites("quadtree", qtt.suites);
+  unit.run_suites("properties", prt.suites);
+  unit.run_suites("transforms", tft.suites);
+}

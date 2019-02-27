@@ -6,6 +6,8 @@ A Javascript + HTML tool for visualizing data interactively.
 
 Similar to the R package RadViz.
 
+## Usage
+
 Use [pre.html](pre.html) to process data for input into the [index.html](index.html) main visualizer.
 
 A JSON array of records, each of which is an array of values is the basic input
@@ -23,3 +25,9 @@ Displays each item in a graph, and allows viewing the other properties based on
 a circular selection cursor.
 
 Grouping modalities for secondary display are a work in progress.
+
+## Setup
+
+In the `js/` directory run `roll.sh` (requires `rollup`; available via `npm`).
+
+For simple hosting, run `./serve.sh`, especially if you're getting cross-origin request errors. Once that's running, access [localhost:8000](http://localhost:8000) to visualize data.
