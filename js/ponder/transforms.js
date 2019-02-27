@@ -678,7 +678,6 @@ PCATransform.prototype.set_index = function (index) {
 
   let vectors = this.data.records.map(r => this.vt.getter(r));
 
-  console.log(PCA);
   this.pca = new PCA(vectors);
 
   // Figure out result type:

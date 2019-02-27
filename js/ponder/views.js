@@ -2492,7 +2492,7 @@ LensView.prototype.set_color_property = function(c_index) {
 LensView.prototype.update_outlier_handling = function() {
   if (this.c_index != undefined) {
     if (this.separate_outliers) {
-      var om = ds.outlier_model(this.data, c_index);
+      var om = ds.outlier_model(this.data, this.c_index);
       this.c_value = function (d) {
         return om.normalized(d);
       };
